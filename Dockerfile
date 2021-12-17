@@ -1,9 +1,15 @@
-FROM starport/cli:latest
+FROM golang:latest
 
-COPY . /app
+WORKDIR /
 
-WORKDIR /app
+COPY ./dist /dist
+COPY .test-chain /dist/.test-chain
 
-RUN ["starport", "chain", "build"]
+EXPOSE 26657
+EXPOSE 1317
 
-RUN ["/go/bin/test-chaind", "init", "validator-1"]
+CMD ["/dist/test-chaind", "start", "--home", "/dist/.test-chain" ]
+
+
+
+

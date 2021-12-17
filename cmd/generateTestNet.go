@@ -124,24 +124,8 @@ func generateValidatorKeys(validatorNumber int64) {
 func generateBuildArtifacts() {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
+	dockerExecutable, _ := exec.LookPath("docker")
 	os.Chdir(dir + "/test-chain")
-	// now I can build
-	// starportExecutable, _ := exec.LookPath("starport")
-
-	// buildExecutable := &exec.Cmd{
-	// 	Path:   starportExecutable,
-	// 	Args:   []string{starportExecutable, "chain", "build", "--output", dir + "/test-chain/" + "dist"},
-	// 	Stdout: os.Stdout,
-	// 	Stderr: os.Stderr,
-	// }
-
-	// if err := buildExecutable.Run(); err != nil {
-	// 	fmt.Println("error: ", err)
-	// }
-
-	// the build should be sitting in /dist now
-
-	// I need to copy over the config folder
 
 	fmt.Println(dir + "/.test-chain")
 
@@ -152,8 +136,77 @@ func generateBuildArtifacts() {
 	if err := copyConfigFolderCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
-
 	// so now it should be test-chain/dist/binary and test-chain/dist/.test-chain
+
+	// now we want to build the Docker image
+
+	buildDockerImage := &exec.Cmd{
+		Path:   dockerExecutable,
+		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/test-chain", "-t", "test-chain", "--no-cache"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := buildDockerImage.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
+
+	tagDockerImage := &exec.Cmd{
+		Path:   dockerExecutable,
+		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := tagDockerImage.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
+}
+
+func updateValidators() {
+	//
+}
+
+func pushToECR() {
+	awsExecutable, _ := exec.LookPath("aws")
+	dockerExecutable, _ := exec.LookPath("docker")
+
+	ecrGetCredentialsCMD := &exec.Cmd{
+		Path: awsExecutable,
+		Args: []string{awsExecutable, "ecr", "get-login-password", "--region", "ap-south-1"},
+	}
+
+	// if err := ecrGetCredentialsCMD.Run(); err != nil {
+	// 	fmt.Println("error: ", err)
+	// }
+	fmt.Println("ECR GET CREDENTIALS OUTPUT")
+	out, err := ecrGetCredentialsCMD.CombinedOutput()
+	if err != nil {
+		fmt.Print("error: ", err)
+	}
+
+	dockerEcrLoginCMD := &exec.Cmd{
+		Path:   dockerExecutable,
+		Args:   []string{dockerExecutable, "login", "--username", "AWS", "-p", string(out), "187926495729.dkr.ecr.ap-south-1.amazonaws.com"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := dockerEcrLoginCMD.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
+
+	dockerPushECRCMD := &exec.Cmd{
+		Path:   dockerExecutable,
+		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := dockerPushECRCMD.Run(); err != nil {
+		fmt.Println("error: ", err)
+
+	}
 }
 
 // generateTestNetCmd represents the generateTestNet command
@@ -293,6 +346,7 @@ var generateTestNetCmd = &cobra.Command{
 		// }
 
 		generateBuildArtifacts()
+		pushToECR()
 
 		// now we want to generate the gentxs?
 
