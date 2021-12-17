@@ -164,7 +164,16 @@ func generateBuildArtifacts() {
 }
 
 func updateValidators() {
-	//
+	awsExecutable, _ := exec.LookPath("aws")
+	updateECSServiceCMD := &exec.Cmd{
+		Path:   awsExecutable,
+		Args:   []string{awsExecutable, "ecs", "update-service", "--cluster", "testnet-cluster", "--service", "testnet-app", "--force-new-deployment"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+	if err := updateECSServiceCMD.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
 }
 
 func pushToECR() {
@@ -345,9 +354,10 @@ var generateTestNetCmd = &cobra.Command{
 		// 	fmt.Println("error: ", err)
 		// }
 
-		generateBuildArtifacts()
-		pushToECR()
+		// generateBuildArtifacts()
+		// pushToECR()
 
+		updateValidators()
 		// now we want to generate the gentxs?
 
 		// so I am in the folder right now, the chain is scaffolded, the executable exists in golang.
