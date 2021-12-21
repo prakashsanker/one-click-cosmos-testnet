@@ -218,31 +218,23 @@ func configureValidators() {
 				nodeKeyFileName = "node_key_" + strconv.Itoa(i) + ".json"
 				validatorKeyFileName = "priv_validator_key_" + strconv.Itoa(i) + ".json"
 			}
-			fmt.Println("integer")
-			fmt.Println(i)
-			fmt.Println(nodeKeyFileName)
-			fmt.Println(dnsName)
-			fmt.Println(dir + "/.test-chain/config/" + nodeKeyFileName)
-			fmt.Println("ec2-user@" + dnsName)
 
-			// copyNodeKey := &exec.Cmd{
-			// 	Path: scpExecutable,
-			// 	Args: []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/" + nodeKeyFileName, "ec2-user@" + dnsName + ":"},
-			// }
+			copyNodeKey := &exec.Cmd{
+				Path: scpExecutable,
+				Args: []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/" + nodeKeyFileName, "ec2-user@" + dnsName + ":"},
+			}
 
 			copyValidatorKey := &exec.Cmd{
 				Path: scpExecutable,
 				Args: []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/" + validatorKeyFileName, "ec2-user@" + dnsName + ":"},
 			}
 
-			// if err := copyNodeKey.Run(); err != nil {
-			// 	fmt.Println("error: ", err)
-			// }
+			if err := copyNodeKey.Run(); err != nil {
+				fmt.Println("error: ", err)
+			}
 			if err := copyValidatorKey.Run(); err != nil {
 				fmt.Println("error: ", err)
 			}
-
-			fmt.Println("===")
 
 		}
 
