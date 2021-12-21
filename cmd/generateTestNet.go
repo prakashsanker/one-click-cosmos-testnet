@@ -22,7 +22,9 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"sort"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -178,18 +180,96 @@ func updateValidators() {
 	}
 }
 
+type EC2Instance struct {
+	DnsName    string
+	LaunchTime time.Time
+}
+
+func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
+	usr, _ := user.Current()
+	dir := usr.HomeDir
+	suffix := ""
+	if validatorNumber > 0 {
+		suffix = "_" + strconv.Itoa(validatorNumber)
+	}
+
+	fmt.Println(dir + "/.test-chain/config/validator-config")
+
+	err := os.Mkdir(dir+"/.test-chain/config/validator-config", 0770)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(dir + "/.test-chain/config/node_key" + suffix + ".json")
+	fmt.Println(dir + "/.test-chain/config/validator-config/")
+	cpExecutable, _ := exec.LookPath("cp")
+
+	moveNodeKey := &exec.Cmd{
+		Path:   cpExecutable,
+		Args:   []string{cpExecutable, dir + "/.test-chain/config/node_key" + suffix + ".json", dir + "/.test-chain/config/validator-config/node_key.json"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := moveNodeKey.Run(); err != nil {
+		fmt.Println("Move Node Error: ", err)
+	}
+
+	moveValidatorKey := &exec.Cmd{
+		Path:   cpExecutable,
+		Args:   []string{cpExecutable, dir + "/.test-chain/config/priv_validator_key" + suffix + ".json", dir + "/.test-chain/config/validator-config/priv_validator_key.json"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := moveValidatorKey.Run(); err != nil {
+		fmt.Println("Move Validator Error: ", err)
+	}
+	scpExecutable, _ := exec.LookPath("scp")
+
+	fmt.Println("RUNNING SCP?")
+
+	copyConfig := &exec.Cmd{
+		Path:   scpExecutable,
+		Args:   []string{scpExecutable, "-i", "validator-key.pem", "-pr", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/validator-config"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	fmt.Println("are we getting here?")
+
+	if err := copyConfig.Run(); err != nil {
+		fmt.Println("Scp error: ", err)
+	}
+
+	// rmExecutable, _ := exec.LookPath("rm")
+
+	// rmValidatorConfig := &exec.Cmd{
+	// 	Path:   rmExecutable,
+	// 	Args:   []string{rmExecutable, "-rf", dir + "/.test-chain/validator-config"},
+	// 	Stdout: os.Stdout,
+	// 	Stderr: os.Stderr,
+	// }
+
+	// if err := rmValidatorConfig.Run(); err != nil {
+	// 	fmt.Println("Rm Validator Config error: ", err)
+	// }
+
+}
+
 func configureValidators() {
 	// Load session from shared config
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
-	var dnsNames []string
+	var instances []EC2Instance
 
 	// Create new EC2 client
 	ec2Svc := ec2.New(sess)
 
 	// Call to get detailed information on each instance
+
 	result, err := ec2Svc.DescribeInstances(nil)
 	if err != nil {
 		fmt.Println("Error", err)
@@ -199,43 +279,30 @@ func configureValidators() {
 			for _, instance := range reservation.Instances {
 				fmt.Println(*instance.NetworkInterfaces[0].Association.PublicDnsName)
 				publicDnsName := *instance.NetworkInterfaces[0].Association.PublicDnsName
-				dnsNames = append(dnsNames, publicDnsName)
+				newInstance := EC2Instance{
+					DnsName:    publicDnsName,
+					LaunchTime: *instance.LaunchTime,
+				}
+				instances = append(instances, newInstance)
 			}
 		}
-		fmt.Println(dnsNames)
+
+		sort.Slice(instances, func(i, j int) bool {
+			return instances[i].LaunchTime.Before(instances[j].LaunchTime)
+		})
 		// now I have this I want to
 
-		// 1. Copy over the node_key.json and the priv_validator_key.json
+		// 1. Copy over the node_key.json and the priv_validator_key.json --> make sure that they work with the volume mount
 		// 2. Then I need to modify the config.toml so that the persistent_peers are updated properly.
-		scpExecutable, _ := exec.LookPath("scp")
-		usr, _ := user.Current()
-		dir := usr.HomeDir
+		// scpExecutable, _ := exec.LookPath("scp")
+		// usr, _ := user.Current()
+		// dir := usr.HomeDir
 
-		for i, dnsName := range dnsNames {
-			nodeKeyFileName := "node_key.json"
-			validatorKeyFileName := "priv_validator_key.json"
-			if i > 0 {
-				nodeKeyFileName = "node_key_" + strconv.Itoa(i) + ".json"
-				validatorKeyFileName = "priv_validator_key_" + strconv.Itoa(i) + ".json"
-			}
-
-			copyNodeKey := &exec.Cmd{
-				Path: scpExecutable,
-				Args: []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/" + nodeKeyFileName, "ec2-user@" + dnsName + ":"},
-			}
-
-			copyValidatorKey := &exec.Cmd{
-				Path: scpExecutable,
-				Args: []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/" + validatorKeyFileName, "ec2-user@" + dnsName + ":"},
-			}
-
-			if err := copyNodeKey.Run(); err != nil {
-				fmt.Println("error: ", err)
-			}
-			if err := copyValidatorKey.Run(); err != nil {
-				fmt.Println("error: ", err)
-			}
-
+		for i, instance := range instances {
+			dnsName := instance.DnsName
+			fmt.Println("dns name")
+			fmt.Println(dnsName)
+			moveConfigIntoValidatorConfigFolder(dnsName, i)
 		}
 
 	}
