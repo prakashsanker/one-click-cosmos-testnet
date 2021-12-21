@@ -24,6 +24,8 @@ import (
 	"os/user"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/spf13/cobra"
 )
 
@@ -173,6 +175,77 @@ func updateValidators() {
 	}
 	if err := updateECSServiceCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
+	}
+}
+
+func configureValidators() {
+	// Load session from shared config
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	var dnsNames []string
+
+	// Create new EC2 client
+	ec2Svc := ec2.New(sess)
+
+	// Call to get detailed information on each instance
+	result, err := ec2Svc.DescribeInstances(nil)
+	if err != nil {
+		fmt.Println("Error", err)
+	} else {
+		fmt.Println("Success", result)
+		for _, reservation := range result.Reservations {
+			for _, instance := range reservation.Instances {
+				fmt.Println(*instance.NetworkInterfaces[0].Association.PublicDnsName)
+				publicDnsName := *instance.NetworkInterfaces[0].Association.PublicDnsName
+				dnsNames = append(dnsNames, publicDnsName)
+			}
+		}
+		fmt.Println(dnsNames)
+		// now I have this I want to
+
+		// 1. Copy over the node_key.json and the priv_validator_key.json
+		// 2. Then I need to modify the config.toml so that the persistent_peers are updated properly.
+		scpExecutable, _ := exec.LookPath("scp")
+		usr, _ := user.Current()
+		dir := usr.HomeDir
+
+		for i, dnsName := range dnsNames {
+			nodeKeyFileName := "node_key.json"
+			validatorKeyFileName := "priv_validator_key.json"
+			if i > 0 {
+				nodeKeyFileName = "node_key_" + strconv.Itoa(i) + ".json"
+				validatorKeyFileName = "priv_validator_key_" + strconv.Itoa(i) + ".json"
+			}
+			fmt.Println("integer")
+			fmt.Println(i)
+			fmt.Println(nodeKeyFileName)
+			fmt.Println(dnsName)
+			fmt.Println(dir + "/.test-chain/config/" + nodeKeyFileName)
+			fmt.Println("ec2-user@" + dnsName)
+
+			// copyNodeKey := &exec.Cmd{
+			// 	Path: scpExecutable,
+			// 	Args: []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/" + nodeKeyFileName, "ec2-user@" + dnsName + ":"},
+			// }
+
+			copyValidatorKey := &exec.Cmd{
+				Path: scpExecutable,
+				Args: []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/" + validatorKeyFileName, "ec2-user@" + dnsName + ":"},
+			}
+
+			// if err := copyNodeKey.Run(); err != nil {
+			// 	fmt.Println("error: ", err)
+			// }
+			if err := copyValidatorKey.Run(); err != nil {
+				fmt.Println("error: ", err)
+			}
+
+			fmt.Println("===")
+
+		}
+
 	}
 }
 
@@ -357,7 +430,8 @@ var generateTestNetCmd = &cobra.Command{
 		// generateBuildArtifacts()
 		// pushToECR()
 
-		updateValidators()
+		// updateValidators()
+		configureValidators()
 		// now we want to generate the gentxs?
 
 		// so I am in the folder right now, the chain is scaffolded, the executable exists in golang.
