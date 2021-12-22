@@ -117,7 +117,7 @@ resource "aws_launch_configuration" "ecs" {
   iam_instance_profile = aws_iam_instance_profile.ecs_instance_profile.name
   image_id                    = data.aws_ami.ecs.id
   key_name                    = "validator_key"
-  instance_type               = "t2.small"
+  instance_type               = "t2.micro"
   security_groups             = [aws_security_group.ecs_sg.id]
   associate_public_ip_address = true
   user_data                   = "#!/bin/bash\necho ECS_CLUSTER='testnet-cluster' > /etc/ecs/ecs.config"

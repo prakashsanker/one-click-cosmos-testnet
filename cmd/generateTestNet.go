@@ -231,7 +231,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyConfig := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-i", "validator-key.pem", "-pr", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-i", "validator-key.pem", "-pr", dir + "/.test-chain/config/validator-config", "root@" + dnsName + ":/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -486,11 +486,11 @@ var generateTestNetCmd = &cobra.Command{
 		// 	fmt.Println("error: ", err)
 		// }
 
-		// generateBuildArtifacts()
-		// pushToECR()
+		generateBuildArtifacts()
+		pushToECR()
 
-		// updateValidators()
-		configureValidators()
+		updateValidators()
+		// configureValidators()
 		// now we want to generate the gentxs?
 
 		// so I am in the folder right now, the chain is scaffolded, the executable exists in golang.
