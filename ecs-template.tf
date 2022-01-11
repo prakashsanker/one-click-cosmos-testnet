@@ -1,3 +1,6 @@
+provider "aws" {
+  region = "ap-south-1"
+}
 resource "tls_private_key" "validator_private_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -7,7 +10,7 @@ resource "aws_key_pair" "generated_key" {
   key_name   = "validator_key"
   public_key = tls_private_key.validator_private_key.public_key_openssh
   provisioner "local-exec" {
-    command = "echo '${tls_private_key.validator_private_key.private_key_pem}' > ./validator-key.pem"
+    command = "echo '${tls_private_key.validator_private_key.private_key_pem}' > ./validator_key.pem"
   }
 }
 
@@ -40,7 +43,6 @@ resource "aws_iam_instance_profile" "ecs_instance_profile" {
 
 resource "aws_ecr_repository" "one-click-cosmos-testnet-repo" {
   name                 = "one-click-cosmos-testnet-repo"
-  image_tag_mutability = "IMMUTABLE"
 }
 
 resource "aws_ecr_repository_policy" "one-click-cosmos-testnet-policy" {
@@ -137,6 +139,7 @@ resource "aws_ecs_service" "testnet-cluster-service" {
   name            = "testnet-app"
   cluster         = aws_ecs_cluster.testnet-cluster.id
   task_definition = aws_ecs_task_definition.testnet-ecs-task-definition.arn
+  deployment_minimum_healthy_percent = 0
   launch_type     = "EC2"
   desired_count = 3
 }
