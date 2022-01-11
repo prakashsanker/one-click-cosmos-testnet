@@ -24,6 +24,7 @@ import (
 	"os/user"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -34,6 +35,8 @@ import (
 var validator1PubKey string
 var validator2PubKey string
 var validator3PubKey string
+
+var nodeIdsArray []string
 
 func generateValidatorKeys(validatorNumber int64) {
 	chainExecutable, _ := exec.LookPath("test-chaind")
@@ -54,23 +57,22 @@ func generateValidatorKeys(validatorNumber int64) {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 
-	fmt.Println(dir)
 	if _, error := os.Stat(dir + "/.test-chain/config"); error == nil {
 		fmt.Println("it exists!")
 	} else if errors.Is(error, os.ErrNotExist) {
 		fmt.Println("it does not exist!")
 	}
 
-	addValidatorKeyCmd := &exec.Cmd{
-		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "keys", "add", "validator-" + validatorNumberStr, "--keyring-backend", "test"},
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}
+	// addValidatorKeyCmd := &exec.Cmd{
+	// 	Path:   chainExecutable,
+	// 	Args:   []string{chainExecutable, "keys", "add", "validator-" + validatorNumberStr, "--keyring-backend", "test"},
+	// 	Stdout: os.Stdout,
+	// 	Stderr: os.Stderr,
+	// }
 
-	if err := addValidatorKeyCmd.Run(); err != nil {
-		fmt.Println("error: ", err)
-	}
+	// if err := addValidatorKeyCmd.Run(); err != nil {
+	// 	fmt.Println("error: ", err)
+	// }
 
 	storeValidatorAddressCmd := &exec.Cmd{
 		Path: chainExecutable,
@@ -83,8 +85,6 @@ func generateValidatorKeys(validatorNumber int64) {
 	if err != nil {
 		fmt.Print("error: ", err)
 	}
-
-	fmt.Println("OUTPUT: ", string(out))
 
 	// ok now we want to add the key
 
@@ -114,6 +114,19 @@ func generateValidatorKeys(validatorNumber int64) {
 	} else {
 		validator3PubKey = string(out)
 	}
+
+	nodeIdCmd := &exec.Cmd{
+		Path: chainExecutable,
+		Args: []string{chainExecutable, "tendermint", "show-node-id"},
+	}
+
+	out, err = nodeIdCmd.CombinedOutput()
+
+	if err != nil {
+		fmt.Println("error: ", err)
+	}
+
+	nodeIdsArray = append(nodeIdsArray, string(out))
 
 	e := os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_"+validatorNumberStr+".json")
 	if e != nil {
@@ -231,7 +244,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyConfig := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-i", "validator-key.pem", "-pr", dir + "/.test-chain/config/validator-config", "root@" + dnsName + ":/validator-config"},
+		Args:   []string{scpExecutable, "-i", "validator-key.pem", "-pr", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -240,6 +253,17 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	if err := copyConfig.Run(); err != nil {
 		fmt.Println("Scp error: ", err)
+	}
+
+	copyConfigTomlCmd := &exec.Cmd{
+		Path:   scpExecutable,
+		Args:   []string{scpExecutable, "-i", "validator-key.pem", dir + "/.test-chain/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := copyConfigTomlCmd.Run(); err != nil {
+		fmt.Print("Config.toml error: ", err)
 	}
 
 	// rmExecutable, _ := exec.LookPath("rm")
@@ -255,6 +279,55 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 	// 	fmt.Println("Rm Validator Config error: ", err)
 	// }
 
+}
+
+func getEC2Instances() []EC2Instance {
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+	var instances []EC2Instance
+
+	// Create new EC2 client
+	ec2Svc := ec2.New(sess)
+	result, err := ec2Svc.DescribeInstances(nil)
+	if err != nil {
+		fmt.Println("Error", err)
+	} else {
+		fmt.Println("Success", result)
+		for _, reservation := range result.Reservations {
+			for _, instance := range reservation.Instances {
+				fmt.Println(*instance.NetworkInterfaces[0].Association.PublicDnsName)
+				publicDnsName := *instance.NetworkInterfaces[0].Association.PublicDnsName
+				newInstance := EC2Instance{
+					DnsName:    publicDnsName,
+					LaunchTime: *instance.LaunchTime,
+				}
+				instances = append(instances, newInstance)
+			}
+		}
+
+		sort.Slice(instances, func(i, j int) bool {
+			return instances[i].LaunchTime.Before(instances[j].LaunchTime)
+		})
+	}
+	return instances
+
+}
+
+func constructPersistentPeerString(instances []EC2Instance) string {
+	var persistentPeerString = "persistent_peers = \""
+	for i, instance := range instances {
+		dnsName := instance.DnsName
+		nodeId := nodeIdsArray[i]
+		toAdd := nodeId + "@" + dnsName + ":26656,"
+		persistentPeerString = persistentPeerString + toAdd
+	}
+
+	persistentPeerString += "\""
+
+	var treatedPersistentPeerString = strings.Replace(persistentPeerString, "\n", "", -1)
+
+	return treatedPersistentPeerString
 }
 
 func configureValidators() {
@@ -298,10 +371,28 @@ func configureValidators() {
 		// usr, _ := user.Current()
 		// dir := usr.HomeDir
 
+		persistentPeerString := constructPersistentPeerString(instances)
+		usr, _ := user.Current()
+		dir := usr.HomeDir
+
+		// now take the config.toml
+
+		sedExecutable, _ := exec.LookPath("sed")
+		fmt.Println("ADD PERSISTENT PEERS CMD")
+		fmt.Println("'s/persistent_peers = \"\"/" + persistentPeerString + "/g'")
+		addPersistentPeersToConfigCmd := &exec.Cmd{
+			Path:   sedExecutable,
+			Args:   []string{sedExecutable, "-i", "''", "s/persistent_peers = \"\"/" + persistentPeerString + "/g", dir + "/.test-chain/config/config.toml"},
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+
+		if err := addPersistentPeersToConfigCmd.Run(); err != nil {
+			fmt.Println("error: ", err)
+		}
+
 		for i, instance := range instances {
 			dnsName := instance.DnsName
-			fmt.Println("dns name")
-			fmt.Println(dnsName)
 			moveConfigIntoValidatorConfigFolder(dnsName, i)
 		}
 
@@ -356,9 +447,9 @@ var generateTestNetCmd = &cobra.Command{
 	Short: "One click testnet for starport scaffolded applications",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("generateTestNet called")
-		// generateValidatorKeys(1)
-		// generateValidatorKeys(2)
-		// generateValidatorKeys(3)
+		generateValidatorKeys(1)
+		generateValidatorKeys(2)
+		generateValidatorKeys(3)
 
 		// chainExecutable, _ := exec.LookPath("test-chaind")
 
@@ -486,11 +577,12 @@ var generateTestNetCmd = &cobra.Command{
 		// 	fmt.Println("error: ", err)
 		// }
 
-		generateBuildArtifacts()
-		pushToECR()
+		// generateBuildArtifacts()
+		// pushToECR()
 
-		updateValidators()
-		// configureValidators()
+		configureValidators()
+		// updateValidators()
+
 		// now we want to generate the gentxs?
 
 		// so I am in the folder right now, the chain is scaffolded, the executable exists in golang.
