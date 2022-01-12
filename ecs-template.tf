@@ -161,6 +161,11 @@ resource "aws_ecs_task_definition" "testnet-ecs-task-definition" {
         cpu = 128
         essential = true
         entryPoint = null
+        mointPoints = [{
+          sourceVolume = "validator-config-volume"
+          containerPath = "/home/ec2-user/.test-chain/config"
+          readOnly = false
+        }]
     }
   ])
 }
