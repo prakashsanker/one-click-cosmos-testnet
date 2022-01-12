@@ -39,20 +39,11 @@ var validator3PubKey string
 var nodeIdsArray [3]string = [3]string{"ec2-13-232-211-73.ap-south-1.compute.amazonaws.com", "ec2-13-234-59-187.ap-south-1.compute.amazonaws.com", "ec2-13-127-55-76.ap-south-1.compute.amazonaws.com"}
 
 func generateValidatorKeys(validatorNumber int64) {
+
+	fmt.Println("calling generate validator keys")
 	chainExecutable, _ := exec.LookPath("test-chaind")
 
 	validatorNumberStr := strconv.Itoa((int(validatorNumber)))
-
-	initCmd := &exec.Cmd{
-		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "init", "validator-" + validatorNumberStr, "-o"},
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}
-
-	if err := initCmd.Run(); err != nil {
-		fmt.Println("error: ", err)
-	}
 
 	usr, _ := user.Current()
 	dir := usr.HomeDir
@@ -63,65 +54,76 @@ func generateValidatorKeys(validatorNumber int64) {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
-
+	fmt.Println("executing add validator key command")
 	if err := addValidatorKeyCmd.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
 
-	// storeValidatorAddressCmd := &exec.Cmd{
-	// 	Path:   chainExecutable,
-	// 	Args:   []string{chainExecutable, "keys", "show", "validator-" + validatorNumberStr, "-a", "--keyring-backend", "test"},
-	// 	Stdout: os.Stdout,
-	// 	Stderr: os.Stderr,
-	// }
-
-	// out, err := storeValidatorAddressCmd.CombinedOutput()
-	// if err != nil {
-	// 	fmt.Print("error: ", err)
-	// }
+	storeValidatorAddressCmd := &exec.Cmd{
+		Path: chainExecutable,
+		Args: []string{chainExecutable, "keys", "show", "validator-" + validatorNumberStr, "-a", "--keyring-backend", "test"},
+	}
+	fmt.Println("storing validator address in variable")
+	out, err := storeValidatorAddressCmd.CombinedOutput()
+	if err != nil {
+		fmt.Print("error: ", err)
+	}
 
 	// ok now we want to add the key
 
 	// ok it's now inited
 	// we need to do this 3 times
 
-	validatorPubKeyCmd := &exec.Cmd{
-		Path: chainExecutable,
-		Args: []string{chainExecutable, "tendermint", "show-validator"},
-	}
+	// validatorPubKeyCmd := &exec.Cmd{
+	// 	Path: chainExecutable,
+	// 	Args: []string{chainExecutable, "tendermint", "show-validator"},
+	// }
 
-	out, err := validatorPubKeyCmd.CombinedOutput()
-	if err != nil {
-		fmt.Print("error: ", err)
-	}
-
-	// fmt.Println("OUTPUT: ", string(out))
+	// out, err := validatorPubKeyCmd.CombinedOutput()
+	// if err != nil {
+	// 	fmt.Print("error: ", err)
+	// }
 
 	var jsonMap map[string]string
 	json.Unmarshal([]byte(string(out)), &jsonMap)
-
-	fmt.Print(jsonMap["key"])
+	fmt.Println("storing validator address")
+	fmt.Println(validatorNumberStr)
 	if validatorNumberStr == "1" {
+		fmt.Println("hitting the right if")
 		validator1PubKey = string(out)
+		fmt.Println("validatorPubKey: ", validator1PubKey)
 	} else if validatorNumberStr == "2" {
 		validator2PubKey = string(out)
 	} else {
 		validator3PubKey = string(out)
 	}
 
-	nodeIdCmd := &exec.Cmd{
-		Path: chainExecutable,
-		Args: []string{chainExecutable, "tendermint", "show-node-id"},
-	}
+	// nodeIdCmd := &exec.Cmd{
+	// 	Path: chainExecutable,
+	// 	Args: []string{chainExecutable, "tendermint", "show-node-id"},
+	// }
 
-	out, err = nodeIdCmd.CombinedOutput()
+	// out, err = nodeIdCmd.CombinedOutput()
 
 	if err != nil {
 		fmt.Println("error: ", err)
 	}
 
-	// nodeIdsArray = append(nodeIdsArray, string(out))
+	initCmd := &exec.Cmd{
+		Path:   chainExecutable,
+		Args:   []string{chainExecutable, "init", "validator-" + validatorNumberStr, "--chain-id", "test-chain"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
 
+	fmt.Println("initialize validator")
+
+	if err := initCmd.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
+
+	// nodeIdsArray = append(nodeIdsArray, string(out))
+	fmt.Println("renaming node_key.json to node_key_1.json")
 	e := os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_"+validatorNumberStr+".json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
@@ -503,6 +505,12 @@ func setup() {
 
 	}
 
+	rmGenesisJsonCMD := exec.Command("rm", dir+"/.test-chain/config/genesis.json")
+	if err := rmGenesisJsonCMD.Run(); err != nil {
+		fmt.Println("error: ", err)
+
+	}
+
 	// 	rmDistCMD := exec.Command("rm", "-rf", dir+"/test-chain/dist")
 
 }
@@ -513,6 +521,7 @@ func collectGentX() {
 		Path: chainExecutable,
 		Args: []string{chainExecutable, "collect-gentxs"},
 	}
+	fmt.Println("collecting gentxs")
 
 	if err := collectGentXCmd.Run(); err != nil {
 		fmt.Println("error: ", err)
@@ -521,10 +530,11 @@ func collectGentX() {
 
 func generateGenesisTransactionsAndAccounts() {
 	chainExecutable, _ := exec.LookPath("test-chaind")
+	fmt.Println("generating genesis transactions and accounts")
 
 	usr, _ := user.Current()
 	dir := usr.HomeDir
-
+	fmt.Println("renaming node_key_1.json to node_key.json")
 	e := os.Rename(dir+"/.test-chain/config/node_key_1.json", dir+"/.test-chain/config/node_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
@@ -534,121 +544,157 @@ func generateGenesisTransactionsAndAccounts() {
 		fmt.Println("rename error: ", e)
 	}
 
-	fmt.Println("Add genesis account validator 1")
+	fmt.Println("validatorPubKey: ", validator1PubKey)
+
+	validator1AddressCMD := &exec.Cmd{
+		Path: chainExecutable,
+		Args: []string{chainExecutable, "keys", "show", "validator-1", "-a", "--keyring-backend", "test"},
+	}
+	fmt.Println("storing validator address in variable")
+	out, err := validator1AddressCMD.CombinedOutput()
+	if err != nil {
+		fmt.Print("error: ", err)
+	}
+
+	// var treatedPersistentPeerString = strings.Replace(persistentPeerString, "\n", "", -1)
+
+	validator1Address := strings.ReplaceAll(string(out), "\n", "")
+
+	fmt.Println("getting out the address again")
+	fmt.Println(validator1Address)
 
 	addGenesisAccountValidator1Cmd := &exec.Cmd{
 		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "add-genesis-account", "validator-1", "100000000000stake", "--keyring-backend", "test"},
+		Args:   []string{chainExecutable, "add-genesis-account", validator1Address, "100000000000stake"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
-
+	fmt.Println("adding genesis accounts to the validator")
 	if err := addGenesisAccountValidator1Cmd.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
 
-	fmt.Println("Create gentx validator 1")
-
 	createGentXValidator1Cmd := &exec.Cmd{
 		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "gentx", "validator-1", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test", "--pubkey", validator1PubKey},
+		Args:   []string{chainExecutable, "gentx", "validator-1", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
-
+	fmt.Println("creating gentx for validator-1")
 	if err := createGentXValidator1Cmd.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
 
-	collectGentX()
-	// e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_1.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
-	// e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_1.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
+	e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_1.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
+	e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_1.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
 
-	// e = os.Rename(dir+"/.test-chain/config/node_key_2.json", dir+"/.test-chain/config/node_key.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
-	// e = os.Rename(dir+"/.test-chain/config/priv_validator_key_2.json", dir+"/.test-chain/config/priv_validator_key.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
+	e = os.Rename(dir+"/.test-chain/config/node_key_2.json", dir+"/.test-chain/config/node_key.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
+	e = os.Rename(dir+"/.test-chain/config/priv_validator_key_2.json", dir+"/.test-chain/config/priv_validator_key.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
 
 	// fmt.Println(("RUNNIG GENESIS ACCOUNT FOR VALIDATOR 2"))
 
-	// addGenesisAccountValidator2Cmd := &exec.Cmd{
-	// 	Path:   chainExecutable,
-	// 	Args:   []string{chainExecutable, "add-genesis-account", "validator-2", "100000000000stake", "--keyring-backend", "test"},
-	// 	Stdout: os.Stdout,
-	// 	Stderr: os.Stderr,
-	// }
+	validator2AddressCMD := &exec.Cmd{
+		Path: chainExecutable,
+		Args: []string{chainExecutable, "keys", "show", "validator-2", "-a", "--keyring-backend", "test"},
+	}
+	fmt.Println("storing validator address in variable")
+	out, err = validator2AddressCMD.CombinedOutput()
+	if err != nil {
+		fmt.Print("error: ", err)
+	}
 
-	// if err := addGenesisAccountValidator2Cmd.Run(); err != nil {
-	// 	fmt.Println("error: ", err)
-	// }
+	validator2Address := strings.ReplaceAll(string(out), "\n", "")
 
-	// createGentXValidator2Cmd := &exec.Cmd{
-	// 	Path:   chainExecutable,
-	// 	Args:   []string{chainExecutable, "gentx", "validator-2", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test", "--pubkey", validator2PubKey},
-	// 	Stdout: os.Stdout,
-	// 	Stderr: os.Stderr,
-	// }
+	addGenesisAccountValidator2Cmd := &exec.Cmd{
+		Path:   chainExecutable,
+		Args:   []string{chainExecutable, "add-genesis-account", validator2Address, "100000000000stake", "--keyring-backend", "test"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
 
-	// fmt.Println("Create gentx validator 2")
+	if err := addGenesisAccountValidator2Cmd.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
 
-	// if err := createGentXValidator2Cmd.Run(); err != nil {
-	// 	fmt.Println("error: ", err)
-	// }
+	createGentXValidator2Cmd := &exec.Cmd{
+		Path:   chainExecutable,
+		Args:   []string{chainExecutable, "gentx", "validator-2", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
 
-	// collectGentX()
+	if err := createGentXValidator2Cmd.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
 
-	// e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_2.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
-	// e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_2.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
+	e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_2.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
+	e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_2.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
 
-	// e = os.Rename(dir+"/.test-chain/config/node_key_3.json", dir+"/.test-chain/config/node_key.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
-	// e = os.Rename(dir+"/.test-chain/config/priv_validator_key_3.json", dir+"/.test-chain/config/priv_validator_key.json")
-	// if e != nil {
-	// 	fmt.Println("rename error: ", e)
-	// }
+	e = os.Rename(dir+"/.test-chain/config/node_key_3.json", dir+"/.test-chain/config/node_key.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
+	e = os.Rename(dir+"/.test-chain/config/priv_validator_key_3.json", dir+"/.test-chain/config/priv_validator_key.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
+
+	validator3AddressCMD := &exec.Cmd{
+		Path: chainExecutable,
+		Args: []string{chainExecutable, "keys", "show", "validator-3", "-a", "--keyring-backend", "test"},
+	}
+	fmt.Println("storing validator address in variable")
+	out, err = validator3AddressCMD.CombinedOutput()
+	if err != nil {
+		fmt.Print("error: ", err)
+	}
+
+	// var treatedPersistentPeerString = strings.Replace(persistentPeerString, "\n", "", -1)
+
+	validator3Address := strings.ReplaceAll(string(out), "\n", "")
 
 	// fmt.Println("ADDING GENESIS ACCOUNT VALIDATOR 3 CMD")
-	// addGenesisAccountValidator3Cmd := &exec.Cmd{
-	// 	Path:   chainExecutable,
-	// 	Args:   []string{chainExecutable, "add-genesis-account", "validator-3", "100000000000stake", "--keyring-backend", "test"},
-	// 	Stdout: os.Stdout,
-	// 	Stderr: os.Stderr,
-	// }
+	addGenesisAccountValidator3Cmd := &exec.Cmd{
+		Path:   chainExecutable,
+		Args:   []string{chainExecutable, "add-genesis-account", validator3Address, "100000000000stake", "--keyring-backend", "test"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
 
-	// if err := addGenesisAccountValidator3Cmd.Run(); err != nil {
-	// 	fmt.Println("error: ", err)
-	// }
+	if err := addGenesisAccountValidator3Cmd.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
 
-	// createGentXValidator3Cmd := &exec.Cmd{
-	// 	Path:   chainExecutable,
-	// 	Args:   []string{chainExecutable, "gentx", "validator-3", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test", "--pubkey", validator3PubKey},
-	// 	Stdout: os.Stdout,
-	// 	Stderr: os.Stderr,
-	// }
+	createGentXValidator3Cmd := &exec.Cmd{
+		Path:   chainExecutable,
+		Args:   []string{chainExecutable, "gentx", "validator-3", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
 
-	// if err := createGentXValidator3Cmd.Run(); err != nil {
-	// 	fmt.Println("error: ", err)
-	// }
+	if err := createGentXValidator3Cmd.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
 
-	// collectGentX()
+	collectGentX()
 
 	// fmt.Println("COLLECT TANSACTIONS")
 
@@ -707,16 +753,16 @@ var generateTestNetCmd = &cobra.Command{
 		// We first need to clear up any existing node_key.json and priv_validator_key.json
 		setup()
 		generateValidatorKeys(1)
-		// generateValidatorKeys(2)
-		// generateValidatorKeys(3)
+		generateValidatorKeys(2)
+		generateValidatorKeys(3)
 
 		generateGenesisTransactionsAndAccounts()
 
-		// generateBuildArtifacts()
-		// pushToECR()
+		generateBuildArtifacts()
+		pushToECR()
 
-		// configureValidators()
-		// updateValidators()
+		configureValidators()
+		updateValidators()
 
 		// now we want to generate the gentxs?
 
