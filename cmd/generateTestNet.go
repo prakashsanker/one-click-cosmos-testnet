@@ -185,6 +185,20 @@ func generateBuildArtifacts() {
 
 	// // // now we want to build the Docker image
 
+	// we need to temporarily move the start script over
+	cpExecutable, _ := exec.LookPath("cp")
+
+	moveStartScript := &exec.Cmd{
+		Path:   cpExecutable,
+		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", dir + "/test-chain/dist/"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := moveStartScript.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
+
 	buildDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
 		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/test-chain", "-t", "test-chain", "--no-cache"},
@@ -292,6 +306,17 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	if err := copyConfigTomlCmd.Run(); err != nil {
 		fmt.Print("Config.toml error: ", err)
+	}
+
+	copyStartScriptCMD := &exec.Cmd{
+		Path:   scpExecutable,
+		Args:   []string{scpExecutable, "-i", "./validator_key.pem", "-pr", dir + "/one-click-cosmos-testnet/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := copyStartScriptCMD.Run(); err != nil {
+		fmt.Print("CP Start Script error: ", err)
 	}
 
 	// rmExecutable, _ := exec.LookPath("rm")

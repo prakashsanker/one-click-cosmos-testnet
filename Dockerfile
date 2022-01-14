@@ -8,7 +8,9 @@ EXPOSE 26657
 EXPOSE 1317
 
 
-CMD ["bash", "./binary/start-node.sh"]
+# CMD ["bash","/dist/start.sh"]
+
+CMD ["/dist/test-chaind", "start", "--home", "/dist/.test-chain" ]
 
 
 
