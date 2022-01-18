@@ -36,7 +36,7 @@ var validator1PubKey string
 var validator2PubKey string
 var validator3PubKey string
 
-var nodeIdsArray [3]string = [3]string{"ec2-13-232-211-73.ap-south-1.compute.amazonaws.com", "ec2-13-234-59-187.ap-south-1.compute.amazonaws.com", "ec2-13-127-55-76.ap-south-1.compute.amazonaws.com"}
+var nodeIdsArray []string
 
 func generateValidatorKeys(validatorNumber int64) {
 
@@ -98,13 +98,6 @@ func generateValidatorKeys(validatorNumber int64) {
 		validator3PubKey = string(out)
 	}
 
-	// nodeIdCmd := &exec.Cmd{
-	// 	Path: chainExecutable,
-	// 	Args: []string{chainExecutable, "tendermint", "show-node-id"},
-	// }
-
-	// out, err = nodeIdCmd.CombinedOutput()
-
 	if err != nil {
 		fmt.Println("error: ", err)
 	}
@@ -121,8 +114,17 @@ func generateValidatorKeys(validatorNumber int64) {
 	if err := initCmd.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
+	nodeIdCmd := &exec.Cmd{
+		Path: chainExecutable,
+		Args: []string{chainExecutable, "tendermint", "show-node-id"},
+	}
 
-	// nodeIdsArray = append(nodeIdsArray, string(out))
+	out, err = nodeIdCmd.CombinedOutput()
+
+	nodeIdsArray = append(nodeIdsArray, string(out))
+
+	fmt.Println("NODE ID ARRAY")
+	fmt.Println(nodeIdsArray)
 	fmt.Println("renaming node_key.json to node_key_1.json")
 	e := os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_"+validatorNumberStr+".json")
 	if e != nil {
@@ -244,20 +246,25 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 	suffix := ""
+	fmt.Println("DNS NAME")
+	fmt.Println(dnsName)
+	fmt.Println("SUFFIX")
+	fmt.Println(validatorNumber)
+
 	if validatorNumber > 0 {
 		suffix = "_" + strconv.Itoa(validatorNumber)
 	}
 
-	fmt.Println(dir + "/.test-chain/config/validator-config")
+	fmt.Println("MOVE CONFIG INTO VALIDATOR CONFIG FOLDER")
 
 	err := os.Mkdir(dir+"/.test-chain/config/validator-config", 0770)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	fmt.Println(dir + "/.test-chain/config/node_key" + suffix + ".json")
-	fmt.Println(dir + "/.test-chain/config/validator-config/")
 	cpExecutable, _ := exec.LookPath("cp")
+
+	fmt.Println("SUFFIX")
 
 	moveNodeKey := &exec.Cmd{
 		Path:   cpExecutable,
@@ -282,11 +289,11 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 	}
 	scpExecutable, _ := exec.LookPath("scp")
 
-	fmt.Println("RUNNING SCP?")
+	// fmt.Println("RUNNING SCP?")
 
 	copyConfig := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-i", "./validator_key.pem", "-pr", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-i", "./validator_key.pem", "-r", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -299,7 +306,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyConfigTomlCmd := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-i", "./validator_key.pem", "-pr", dir + "/.test-chain/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-r", "./validator_key.pem", "-pr", dir + "/.test-chain/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -310,7 +317,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyStartScriptCMD := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-i", "./validator_key.pem", "-pr", dir + "/one-click-cosmos-testnet/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-r", "./validator_key.pem", "-pr", dir + "/one-click-cosmos-testnet/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -380,6 +387,8 @@ func constructPersistentPeerString(instances []EC2Instance) string {
 	var persistentPeerString = "persistent_peers = \""
 	for i, instance := range instances {
 		dnsName := instance.DnsName
+		fmt.Println("DNS NAME")
+		fmt.Println(instance.DnsName)
 		nodeId := nodeIdsArray[i]
 		toAdd := nodeId + "@" + dnsName + ":26656,"
 		persistentPeerString = persistentPeerString + toAdd
@@ -420,8 +429,6 @@ func configureValidators() {
 	} else {
 		for _, reservation := range result.Reservations {
 			for _, instance := range reservation.Instances {
-				fmt.Println("INSTANCE")
-				fmt.Println(instance)
 				publicDnsName := *instance.NetworkInterfaces[0].Association.PublicDnsName
 				newInstance := EC2Instance{
 					DnsName:    publicDnsName,
@@ -431,8 +438,6 @@ func configureValidators() {
 			}
 		}
 
-		fmt.Println("instances")
-
 		sort.Slice(instances, func(i, j int) bool {
 			return instances[i].LaunchTime.Before(instances[j].LaunchTime)
 		})
@@ -440,16 +445,14 @@ func configureValidators() {
 
 		// 1. Copy over the node_key.json and the priv_validator_key.json --> make sure that they work with the volume mount
 		// 2. Then I need to modify the config.toml so that the persistent_peers are updated properly.
-		// scpExecutable, _ := exec.LookPath("scp")
-		// usr, _ := user.Current()
-		// dir := usr.HomeDir
-
-		persistentPeerString := constructPersistentPeerString(instances)
 		usr, _ := user.Current()
 		dir := usr.HomeDir
 
-		// now take the config.toml
+		persistentPeerString := constructPersistentPeerString(instances)
 
+		// now take the config.toml
+		fmt.Println("SED BEING CALLED")
+		fmt.Println("persistent peer string: ", persistentPeerString)
 		sedExecutable, _ := exec.LookPath("sed")
 		addPersistentPeersToConfigCmd := &exec.Cmd{
 			Path:   sedExecutable,
@@ -462,9 +465,20 @@ func configureValidators() {
 			fmt.Println("error: ", err)
 		}
 
+		setAddrBookStrictToFalseCMD := &exec.Cmd{
+			Path:   sedExecutable,
+			Args:   []string{sedExecutable, "-i", "''", "s/addr_book_strict = true/addr_book_strict = false/g", dir + "/.test-chain/config/config.toml"},
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+
+		if err := setAddrBookStrictToFalseCMD.Run(); err != nil {
+			fmt.Println("error: ", err)
+		}
+
 		for i, instance := range instances {
 			dnsName := instance.DnsName
-			moveConfigIntoValidatorConfigFolder(dnsName, i)
+			moveConfigIntoValidatorConfigFolder(dnsName, i+1)
 		}
 
 	}
@@ -479,9 +493,6 @@ func pushToECR() {
 		Args: []string{awsExecutable, "ecr", "get-login-password", "--region", "ap-south-1"},
 	}
 
-	// if err := ecrGetCredentialsCMD.Run(); err != nil {
-	// 	fmt.Println("error: ", err)
-	// }
 	out, err := ecrGetCredentialsCMD.CombinedOutput()
 	if err != nil {
 		fmt.Print("error: ", err)
@@ -717,6 +728,15 @@ func generateGenesisTransactionsAndAccounts() {
 
 	if err := createGentXValidator3Cmd.Run(); err != nil {
 		fmt.Println("error: ", err)
+	}
+
+	e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_3.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
+	}
+	e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_3.json")
+	if e != nil {
+		fmt.Println("rename error: ", e)
 	}
 
 	collectGentX()
