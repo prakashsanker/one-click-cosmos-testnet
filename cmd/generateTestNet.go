@@ -246,16 +246,10 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 	suffix := ""
-	fmt.Println("DNS NAME")
-	fmt.Println(dnsName)
-	fmt.Println("SUFFIX")
-	fmt.Println(validatorNumber)
 
 	if validatorNumber > 0 {
 		suffix = "_" + strconv.Itoa(validatorNumber)
 	}
-
-	fmt.Println("MOVE CONFIG INTO VALIDATOR CONFIG FOLDER")
 
 	err := os.Mkdir(dir+"/.test-chain/config/validator-config", 0770)
 	if err != nil {
@@ -289,16 +283,15 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 	}
 	scpExecutable, _ := exec.LookPath("scp")
 
-	// fmt.Println("RUNNING SCP?")
-
 	copyConfig := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-i", "./validator_key.pem", "-r", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-r", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
 
-	fmt.Println("are we getting here?")
+	fmt.Println("DNS")
+	fmt.Println(dnsName)
 
 	if err := copyConfig.Run(); err != nil {
 		fmt.Println("Scp error: ", err)
@@ -306,7 +299,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyConfigTomlCmd := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-r", "./validator_key.pem", "-pr", dir + "/.test-chain/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-pr", dir + "/.test-chain/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -317,7 +310,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyStartScriptCMD := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-r", "./validator_key.pem", "-pr", dir + "/one-click-cosmos-testnet/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-pr", dir + "/one-click-cosmos-testnet/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -370,25 +363,17 @@ func getEC2Instances() []EC2Instance {
 			return instances[i].LaunchTime.Before(instances[j].LaunchTime)
 		})
 	}
+
+	fmt.Println("instances: ", instances)
 	return instances
 
 }
 
 func constructPersistentPeerString(instances []EC2Instance) string {
-	fmt.Println("INSTANCES")
-	fmt.Println(instances)
 
-	// nodeIdsArray[0] = "ec2-3-108-42-87.ap-south-1.compute.amazonaws.com"
-	// nodeIdsArray[1] = "ec2-52-66-87-194.ap-south-1.compute.amazonaws.com"
-	// nodeIdsArray[2] = "ec2-13-233-253-6.ap-south-1.compute.amazonaws.com"
-
-	fmt.Println("NODE IDS ARRAY")
-	fmt.Println(nodeIdsArray)
 	var persistentPeerString = "persistent_peers = \""
 	for i, instance := range instances {
 		dnsName := instance.DnsName
-		fmt.Println("DNS NAME")
-		fmt.Println(instance.DnsName)
 		nodeId := nodeIdsArray[i]
 		toAdd := nodeId + "@" + dnsName + ":26656,"
 		persistentPeerString = persistentPeerString + toAdd
@@ -441,6 +426,9 @@ func configureValidators() {
 		sort.Slice(instances, func(i, j int) bool {
 			return instances[i].LaunchTime.Before(instances[j].LaunchTime)
 		})
+
+		fmt.Println("instances")
+		fmt.Println(instances)
 		// now I have this I want to
 
 		// 1. Copy over the node_key.json and the priv_validator_key.json --> make sure that they work with the volume mount
@@ -450,9 +438,6 @@ func configureValidators() {
 
 		persistentPeerString := constructPersistentPeerString(instances)
 
-		// now take the config.toml
-		fmt.Println("SED BEING CALLED")
-		fmt.Println("persistent peer string: ", persistentPeerString)
 		sedExecutable, _ := exec.LookPath("sed")
 		addPersistentPeersToConfigCmd := &exec.Cmd{
 			Path:   sedExecutable,
@@ -752,33 +737,6 @@ func generateGenesisTransactionsAndAccounts() {
 	// 	fmt.Println("error: ", err)
 	// }
 
-}
-
-var generateTestInfra = &cobra.Command{
-	Use:   "generate-test-infra",
-	Short: "Create cloud validator set",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Generate Test Infra called")
-		terraformExecutable, _ := exec.LookPath("terraform")
-		terraformApplyCmd := &exec.Cmd{
-			Path:   terraformExecutable,
-			Args:   []string{terraformExecutable, "apply", "-auto-approve"},
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
-		}
-
-		if err := terraformApplyCmd.Run(); err != nil {
-			fmt.Println("error: ", err)
-		}
-
-		// chmodExecutable, _ := exec.LookPath("chmod")
-		// chmodValidatorKeyPem := &exec.Cmd{
-		// 	Path:   chmodExecutable,
-		// 	Args:   []string{chmodExecutable, "400", "validator_key.pem"},
-		// 	Stdout: os.Stdout,
-		// 	Stderr: os.Stederr,
-		// }
-	},
 }
 
 // generateTestNetCmd represents the generateTestNet command

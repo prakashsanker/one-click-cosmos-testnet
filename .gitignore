@@ -1,2 +1,4 @@
 .terraform/*
 terraform.tfstate
+validator_key.pem
+validator-key.pem

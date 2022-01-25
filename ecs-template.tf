@@ -9,9 +9,14 @@ resource "tls_private_key" "validator_private_key" {
 resource "aws_key_pair" "generated_key" {
   key_name   = "validator_key"
   public_key = tls_private_key.validator_private_key.public_key_openssh
-  provisioner "local-exec" {
-    command = "echo '${tls_private_key.validator_private_key.private_key_pem}' > ./validator_key.pem"
-  }
+  # provisioner "local-exec" {
+  #   command = "echo '${tls_private_key.validator_private_key.private_key_pem}' > ./validator_key.pem"
+  # }
+}
+
+resource "local_file" "ssh_key" {
+  filename = "validator_key.pem"
+  content = tls_private_key.validator_private_key.private_key_pem
 }
 
 data "aws_iam_policy_document" "ecs_instance_assume_role_policy" {
@@ -151,7 +156,7 @@ resource "aws_ecs_task_definition" "testnet-ecs-task-definition" {
   memory                   = "500"
   volume {
       name = "validator-config-volume"
-      host_path = "/validator-config"
+      host_path = "/home/ec2-user/validator-config"
   }
   container_definitions = jsonencode([
     {
@@ -161,9 +166,9 @@ resource "aws_ecs_task_definition" "testnet-ecs-task-definition" {
         cpu = 128
         essential = true
         entryPoint = null
-        mointPoints = [{
+        mountPoints = [{
           sourceVolume = "validator-config-volume"
-          containerPath = "/home/ec2-user/.test-chain/config"
+          containerPath = "/validator-config"
           readOnly = false
         }]
     }
