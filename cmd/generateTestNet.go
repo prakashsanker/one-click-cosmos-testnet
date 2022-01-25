@@ -465,6 +465,7 @@ func CheckIfError(err error) {
 func deploy() {
 	generateBuildArtifacts()
 	pushToECR()
+	updateValidators()
 }
 
 func getLatestSha() string {
@@ -531,7 +532,28 @@ func pushToECR() {
 
 	if err := dockerPushECRCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
+	}
 
+	tagDockerImage := &exec.Cmd{
+		Path:   dockerExecutable,
+		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := tagDockerImage.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
+
+	dockerPushLatestECRCMD := &exec.Cmd{
+		Path:   dockerExecutable,
+		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := dockerPushLatestECRCMD.Run(); err != nil {
+		fmt.Println("error: ", err)
 	}
 }
 
