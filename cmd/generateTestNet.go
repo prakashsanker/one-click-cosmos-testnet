@@ -29,6 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/spf13/cobra"
 )
 
@@ -38,9 +40,24 @@ var validator3PubKey string
 
 var nodeIdsArray []string
 
+func rmGenesisFile() {
+	rmExecutable, _ := exec.LookPath("rm")
+	usr, _ := user.Current()
+	dir := usr.HomeDir
+	rmGenesisCmd := &exec.Cmd{
+		Path:   rmExecutable,
+		Args:   []string{rmExecutable, dir + "/.test-chain/config/genesis.json"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := rmGenesisCmd.Run(); err != nil {
+		fmt.Println("error: ", err)
+	}
+}
+
 func generateValidatorKeys(validatorNumber int64) {
 
-	fmt.Println("calling generate validator keys")
 	chainExecutable, _ := exec.LookPath("test-chaind")
 
 	validatorNumberStr := strconv.Itoa((int(validatorNumber)))
@@ -86,12 +103,8 @@ func generateValidatorKeys(validatorNumber int64) {
 
 	var jsonMap map[string]string
 	json.Unmarshal([]byte(string(out)), &jsonMap)
-	fmt.Println("storing validator address")
-	fmt.Println(validatorNumberStr)
 	if validatorNumberStr == "1" {
-		fmt.Println("hitting the right if")
 		validator1PubKey = string(out)
-		fmt.Println("validatorPubKey: ", validator1PubKey)
 	} else if validatorNumberStr == "2" {
 		validator2PubKey = string(out)
 	} else {
@@ -102,14 +115,14 @@ func generateValidatorKeys(validatorNumber int64) {
 		fmt.Println("error: ", err)
 	}
 
+	rmGenesisFile()
+
 	initCmd := &exec.Cmd{
 		Path:   chainExecutable,
 		Args:   []string{chainExecutable, "init", "validator-" + validatorNumberStr, "--chain-id", "test-chain"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
-
-	fmt.Println("initialize validator")
 
 	if err := initCmd.Run(); err != nil {
 		fmt.Println("error: ", err)
@@ -123,9 +136,6 @@ func generateValidatorKeys(validatorNumber int64) {
 
 	nodeIdsArray = append(nodeIdsArray, string(out))
 
-	fmt.Println("NODE ID ARRAY")
-	fmt.Println(nodeIdsArray)
-	fmt.Println("renaming node_key.json to node_key_1.json")
 	e := os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_"+validatorNumberStr+".json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
@@ -142,13 +152,7 @@ func generateBuildArtifacts() {
 	dockerExecutable, _ := exec.LookPath("docker")
 	os.Chdir(dir + "/test-chain")
 
-	fmt.Println(dir + "/.test-chain")
-
-	fmt.Println(dir + "/test-chain")
-
 	rmDistCMD := exec.Command("rm", "-rf", dir+"/test-chain/dist")
-
-	fmt.Println("removing dist folder")
 
 	if err := rmDistCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
@@ -166,8 +170,6 @@ func generateBuildArtifacts() {
 	if err := copyConfigFolderCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
-
-	fmt.Println("generating binary")
 
 	generateBinary := exec.Command("starport", "chain", "build", "-o", dir+"/test-chain/dist", "--release", "-t", "linux:amd64")
 	// // so now it should be test-chain/dist/binary and test-chain/dist/.test-chain
@@ -201,9 +203,11 @@ func generateBuildArtifacts() {
 		fmt.Println("error: ", err)
 	}
 
+	latestSha := getLatestSha()
+
 	buildDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/test-chain", "-t", "test-chain", "--no-cache"},
+		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", latestSha, "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/test-chain", "-t", "test-chain", "--no-cache"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -214,7 +218,7 @@ func generateBuildArtifacts() {
 
 	tagDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + latestSha},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -258,8 +262,6 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	cpExecutable, _ := exec.LookPath("cp")
 
-	fmt.Println("SUFFIX")
-
 	moveNodeKey := &exec.Cmd{
 		Path:   cpExecutable,
 		Args:   []string{cpExecutable, dir + "/.test-chain/config/node_key" + suffix + ".json", dir + "/.test-chain/config/validator-config/node_key.json"},
@@ -290,9 +292,6 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 		Stderr: os.Stderr,
 	}
 
-	fmt.Println("DNS")
-	fmt.Println(dnsName)
-
 	if err := copyConfig.Run(); err != nil {
 		fmt.Println("Scp error: ", err)
 	}
@@ -318,19 +317,6 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 	if err := copyStartScriptCMD.Run(); err != nil {
 		fmt.Print("CP Start Script error: ", err)
 	}
-
-	// rmExecutable, _ := exec.LookPath("rm")
-
-	// rmValidatorConfig := &exec.Cmd{
-	// 	Path:   rmExecutable,
-	// 	Args:   []string{rmExecutable, "-rf", dir + "/.test-chain/validator-config"},
-	// 	Stdout: os.Stdout,
-	// 	Stderr: os.Stderr,
-	// }
-
-	// if err := rmValidatorConfig.Run(); err != nil {
-	// 	fmt.Println("Rm Validator Config error: ", err)
-	// }
 
 }
 
@@ -364,7 +350,6 @@ func getEC2Instances() []EC2Instance {
 		})
 	}
 
-	fmt.Println("instances: ", instances)
 	return instances
 
 }
@@ -427,8 +412,6 @@ func configureValidators() {
 			return instances[i].LaunchTime.Before(instances[j].LaunchTime)
 		})
 
-		fmt.Println("instances")
-		fmt.Println(instances)
 		// now I have this I want to
 
 		// 1. Copy over the node_key.json and the priv_validator_key.json --> make sure that they work with the volume mount
@@ -469,6 +452,49 @@ func configureValidators() {
 	}
 }
 
+func Info(str string) {
+	fmt.Println("Info: ", str)
+}
+
+func CheckIfError(err error) {
+	if err != nil {
+		fmt.Println("error: ", err)
+	}
+}
+
+func deploy() {
+	generateBuildArtifacts()
+	pushToECR()
+}
+
+func getLatestSha() string {
+	/*
+		1. Build image + tag with github SHA.
+		2. Push image
+		3. Update using ECS
+	*/
+
+	usr, _ := user.Current()
+	dir := usr.HomeDir
+	// Clones the given repository, creating the remote, the local branches
+	// and fetching the objects, everything in memory:
+	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
+		URL: dir + "/test-chain/",
+	})
+	CheckIfError(err)
+
+	// Gets the HEAD history from HEAD, just like this command:
+	Info("git log")
+
+	// ... retrieves the branch pointed by HEAD
+	ref, err := r.Head()
+	fmt.Println(ref)
+	CheckIfError(err)
+
+	return ref.Hash().String()
+	// now we want to use this SHA and build the docker image
+}
+
 func pushToECR() {
 	awsExecutable, _ := exec.LookPath("aws")
 	dockerExecutable, _ := exec.LookPath("docker")
@@ -494,9 +520,11 @@ func pushToECR() {
 		fmt.Println("error: ", err)
 	}
 
+	latestSha := getLatestSha()
+
 	dockerPushECRCMD := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + latestSha},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -512,28 +540,24 @@ func setup() {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 
-	rmNodeKeyCMD := exec.Command("rm", dir+"/.test-chain/config/node_key.json")
+	rmNodeKeyCMD := exec.Command("rm", "-f", dir+"/.test-chain/config/node_key.json")
 
 	if err := rmNodeKeyCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 
 	}
 
-	rmValidatorKeyCMD := exec.Command("rm", dir+"/.test-chain/config/priv_validator_key.json")
+	rmValidatorKeyCMD := exec.Command("rm", "-f", dir+"/.test-chain/config/priv_validator_key.json")
 
 	if err := rmValidatorKeyCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 
 	}
 
-	rmGenesisJsonCMD := exec.Command("rm", dir+"/.test-chain/config/genesis.json")
+	rmGenesisJsonCMD := exec.Command("rm", "-f", dir+"/.test-chain/config/genesis.json")
 	if err := rmGenesisJsonCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
-
 	}
-
-	// 	rmDistCMD := exec.Command("rm", "-rf", dir+"/test-chain/dist")
-
 }
 
 func collectGentX() {
@@ -555,7 +579,6 @@ func generateGenesisTransactionsAndAccounts() {
 
 	usr, _ := user.Current()
 	dir := usr.HomeDir
-	fmt.Println("renaming node_key_1.json to node_key.json")
 	e := os.Rename(dir+"/.test-chain/config/node_key_1.json", dir+"/.test-chain/config/node_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
@@ -565,13 +588,10 @@ func generateGenesisTransactionsAndAccounts() {
 		fmt.Println("rename error: ", e)
 	}
 
-	fmt.Println("validatorPubKey: ", validator1PubKey)
-
 	validator1AddressCMD := &exec.Cmd{
 		Path: chainExecutable,
 		Args: []string{chainExecutable, "keys", "show", "validator-1", "-a", "--keyring-backend", "test"},
 	}
-	fmt.Println("storing validator address in variable")
 	out, err := validator1AddressCMD.CombinedOutput()
 	if err != nil {
 		fmt.Print("error: ", err)
@@ -581,16 +601,12 @@ func generateGenesisTransactionsAndAccounts() {
 
 	validator1Address := strings.ReplaceAll(string(out), "\n", "")
 
-	fmt.Println("getting out the address again")
-	fmt.Println(validator1Address)
-
 	addGenesisAccountValidator1Cmd := &exec.Cmd{
 		Path:   chainExecutable,
 		Args:   []string{chainExecutable, "add-genesis-account", validator1Address, "100000000000stake"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
-	fmt.Println("adding genesis accounts to the validator")
 	if err := addGenesisAccountValidator1Cmd.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
@@ -601,7 +617,6 @@ func generateGenesisTransactionsAndAccounts() {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
-	fmt.Println("creating gentx for validator-1")
 	if err := createGentXValidator1Cmd.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
@@ -624,13 +639,10 @@ func generateGenesisTransactionsAndAccounts() {
 		fmt.Println("rename error: ", e)
 	}
 
-	// fmt.Println(("RUNNIG GENESIS ACCOUNT FOR VALIDATOR 2"))
-
 	validator2AddressCMD := &exec.Cmd{
 		Path: chainExecutable,
 		Args: []string{chainExecutable, "keys", "show", "validator-2", "-a", "--keyring-backend", "test"},
 	}
-	fmt.Println("storing validator address in variable")
 	out, err = validator2AddressCMD.CombinedOutput()
 	if err != nil {
 		fmt.Print("error: ", err)
@@ -688,11 +700,8 @@ func generateGenesisTransactionsAndAccounts() {
 		fmt.Print("error: ", err)
 	}
 
-	// var treatedPersistentPeerString = strings.Replace(persistentPeerString, "\n", "", -1)
-
 	validator3Address := strings.ReplaceAll(string(out), "\n", "")
 
-	// fmt.Println("ADDING GENESIS ACCOUNT VALIDATOR 3 CMD")
 	addGenesisAccountValidator3Cmd := &exec.Cmd{
 		Path:   chainExecutable,
 		Args:   []string{chainExecutable, "add-genesis-account", validator3Address, "100000000000stake", "--keyring-backend", "test"},
@@ -754,18 +763,19 @@ var generateTestNetCmd = &cobra.Command{
 		*/
 
 		// We first need to clear up any existing node_key.json and priv_validator_key.json
-		setup()
-		generateValidatorKeys(1)
-		generateValidatorKeys(2)
-		generateValidatorKeys(3)
+		deploy()
+		// setup()
+		// generateValidatorKeys(1)
+		// generateValidatorKeys(2)
+		// generateValidatorKeys(3)
 
-		generateGenesisTransactionsAndAccounts()
+		// generateGenesisTransactionsAndAccounts()
 
-		generateBuildArtifacts()
-		pushToECR()
+		// generateBuildArtifacts()
+		// pushToECR()
 
-		configureValidators()
-		updateValidators()
+		// configureValidators()
+		// updateValidators()
 
 		// now we want to generate the gentxs?
 
