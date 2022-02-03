@@ -117,6 +117,7 @@ func GenerateValidatorKeys(validatorNumber int64) {
 }
 
 func GenerateBuildArtifacts(sha string) {
+	fmt.Println("Are we hitting GENERATE BUILD ARTIFACTS?")
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 	dockerExecutable, _ := exec.LookPath("docker")
@@ -138,14 +139,17 @@ func GenerateBuildArtifacts(sha string) {
 	copyConfigFolderCMD := exec.Command("cp", "-R", dir+getChainConfigFolderName(), dir+"/"+getChainFolderName()+"/dist/")
 
 	if err := copyConfigFolderCMD.Run(); err != nil {
-		fmt.Println("error: ", err)
+		fmt.Println("Copy Config Folder error: ", err)
 	}
 
-	generateBinary := exec.Command("starport", "chain", "build", "-o", dir+getChainFolderName()+"/dist", "--release", "-t", "linux:amd64")
+	fmt.Println("CHAIN FOLDER NAME")
+	fmt.Println(getChainFolderName())
+
+	generateBinary := exec.Command("starport", "chain", "build", "-o", dir+"/"+getChainFolderName()+"/dist", "--release", "-t", "linux:amd64")
 	// // so now it should be test-chain/dist/binary and test-chain/dist/.test-chain
 
 	if err := generateBinary.Run(); err != nil {
-		fmt.Println("error: ", err)
+		fmt.Println("Generate Binary error: ", err)
 	}
 
 	// // need to untar
@@ -154,7 +158,7 @@ func GenerateBuildArtifacts(sha string) {
 	fmt.Println("untarring")
 	untarCMD := exec.Command("tar", "-xf", dir+"/"+getChainFolderName()+"/dist/"+getChainFolderName()+"_linux_amd64.tar.gz", "-C", dir+"/"+getChainFolderName()+"/dist/")
 	if err := untarCMD.Run(); err != nil {
-		fmt.Println("error: ", err)
+		fmt.Println("Untar error: ", err)
 	}
 
 	// // // now we want to build the Docker image
@@ -167,6 +171,8 @@ func GenerateBuildArtifacts(sha string) {
 	if sha == "" {
 		toTag = GetLatestSha()
 	}
+
+	fmt.Println("AT MOVE START SCRIPT")
 
 	moveStartScript := &exec.Cmd{
 		Path:   cpExecutable,
@@ -458,9 +464,12 @@ func GetLatestSha() string {
 	dir := usr.HomeDir
 	// Clones the given repository, creating the remote, the local branches
 	// and fetching the objects, everything in memory:
+
+	fmt.Println(dir + "/" + getChainFolderName())
 	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
 		URL: dir + "/" + getChainFolderName(),
 	})
+
 	CheckIfError(err)
 
 	// Gets the HEAD history from HEAD, just like this command:
@@ -577,6 +586,7 @@ func Setup() {
 
 	if err != nil {
 		fmt.Println("Please run starport chain build once before running this command")
+		return
 	}
 
 	// if the binary does not exist, build it
@@ -602,7 +612,9 @@ func Setup() {
 }
 
 func collectGentX() {
-	chainExecutable, _ := exec.LookPath(getChainFolderName())
+	fmt.Println("GET CHAIN FOLDER NAME")
+	fmt.Println(getChainFolderName())
+	chainExecutable, _ := exec.LookPath(getChainBinaryName())
 	collectGentXCmd := &exec.Cmd{
 		Path: chainExecutable,
 		Args: []string{chainExecutable, "collect-gentxs"},
@@ -762,7 +774,7 @@ func GenerateGenesisTransactionsAndAccounts() {
 	}
 
 	if err := createGentXValidator3Cmd.Run(); err != nil {
-		fmt.Println("error: ", err)
+		fmt.Println("GentX validator 3 error: ", err)
 	}
 
 	e = os.Rename(dir+getChainConfigFolderName()+"/config/node_key.json", dir+getChainConfigFolderName()+"/config/node_key_3.json")

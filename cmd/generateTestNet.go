@@ -38,17 +38,17 @@ var generateTestNetCmd = &cobra.Command{
 
 		// We first need to clear up any existing node_key.json and priv_validator_key.json
 		testnet.Setup()
-		// testnet.GenerateValidatorKeys(1)
-		// testnet.GenerateValidatorKeys(2)
-		// testnet.GenerateValidatorKeys(3)
+		testnet.GenerateValidatorKeys(1)
+		testnet.GenerateValidatorKeys(2)
+		testnet.GenerateValidatorKeys(3)
 
-		// testnet.GenerateGenesisTransactionsAndAccounts()
+		testnet.GenerateGenesisTransactionsAndAccounts()
 
-		// testnet.GenerateBuildArtifacts("")
-		// testnet.PushToEcr("")
+		testnet.GenerateBuildArtifacts("")
+		testnet.PushToEcr("")
 
-		// testnet.ConfigureValidators()
-		// testnet.UpdateValidators()
+		testnet.ConfigureValidators()
+		testnet.UpdateValidators()
 
 	},
 }
