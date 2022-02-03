@@ -172,11 +172,9 @@ func GenerateBuildArtifacts(sha string) {
 		toTag = GetLatestSha()
 	}
 
-	fmt.Println("AT MOVE START SCRIPT")
-
 	moveStartScript := &exec.Cmd{
 		Path:   cpExecutable,
-		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", toTag + getChainFolderName() + "/dist/"},
+		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", dir + "/" + getChainFolderName() + "/dist/"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -207,6 +205,26 @@ func GenerateBuildArtifacts(sha string) {
 		fmt.Println("error: ", err)
 	}
 }
+
+// func GetSummaryInformation() {
+// 	fmt.Println("Fetching your EC2")
+// 	instances := getEC2Instances()
+// 	for i, instance := range instances {
+// 		fmt.Println("Node - " + string(i))
+// 		fmt.Println("SSH into Node" + string(i) + "with this command " + "ssh " + "-i 'validator_key.pem' -o IdentitiesOnly=yes ec2-user@" + instance.DnsName)
+// 		fmt.Println("Submit transactions at " + instance.DnsName + ":1317")
+// 	}
+// }
+
+// func MovePemFileToChainCode() {
+// 	cpExecutable, _ := exec.LookPath("cp")
+// 	usr, _ := user.Current()
+// 	dir := usr.HomeDir
+// 	moveValidatorPemFile := &exec.Cmd{
+// 		Path: cpExecutable,
+// 		Args: []string{cpExecutable, "./validator_key.pem" + }
+// 	}
+// }
 
 func UpdateValidators() {
 	awsExecutable, _ := exec.LookPath("aws")
