@@ -44,8 +44,8 @@ var generateTestNetCmd = &cobra.Command{
 
 		testnet.GenerateGenesisTransactionsAndAccounts()
 
-		testnet.GenerateBuildArtifacts()
-		testnet.PushToEcr()
+		testnet.GenerateBuildArtifacts("")
+		testnet.PushToEcr("")
 
 		testnet.ConfigureValidators()
 		testnet.UpdateValidators()

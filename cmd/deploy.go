@@ -17,27 +17,59 @@ package cmd
 
 import (
 	"fmt"
+	"os/user"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/prakashsanker/one-click-cosmos-testnet/testnet"
 	"github.com/spf13/cobra"
 )
 
 // deployCmd represents the deploy command
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Deploy your chain to your validators",
+	Long:  `Run testnet deploy <SHA> in order to deploy a specific version of your code. Default is HEAD`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("deploy called")
+		commitSha, _ := cmd.Flags().GetString("sha")
+		usr, _ := user.Current()
+		dir := usr.HomeDir
+		if commitSha != "" {
+			fmt.Println("Commit sha provided... using " + commitSha)
+			r, err := git.PlainOpen(dir + "/test-chain")
+			testnet.CheckIfError(err)
+
+			worktree, err := r.Worktree()
+
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			err = worktree.Checkout(&git.CheckoutOptions{
+				Hash: plumbing.NewHash(commitSha),
+			})
+			testnet.CheckIfError(err)
+
+			testnet.GenerateBuildArtifacts(commitSha)
+			testnet.PushToEcr(commitSha)
+			testnet.UpdateValidators()
+			// we need to also store the branch we were on before.
+
+		} else {
+			fmt.Println("No commit sha provided....using current HEAD")
+			latestSha := testnet.GetLatestSha()
+			testnet.GenerateBuildArtifacts(latestSha)
+			testnet.PushToEcr(latestSha)
+			testnet.UpdateValidators()
+		}
+
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(deployCmd)
+
+	rootCmd.PersistentFlags().String("sha", "", "A github commit to deploy to your chain")
 
 	// Here you will define your flags and configuration settings.
 

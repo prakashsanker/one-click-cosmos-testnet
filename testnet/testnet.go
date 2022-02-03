@@ -115,7 +115,7 @@ func GenerateValidatorKeys(validatorNumber int64) {
 	}
 }
 
-func GenerateBuildArtifacts() {
+func GenerateBuildArtifacts(sha string) {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 	dockerExecutable, _ := exec.LookPath("docker")
@@ -161,9 +161,15 @@ func GenerateBuildArtifacts() {
 	// we need to temporarily move the start script over
 	cpExecutable, _ := exec.LookPath("cp")
 
+	toTag := sha
+
+	if sha == "" {
+		toTag = GetLatestSha()
+	}
+
 	moveStartScript := &exec.Cmd{
 		Path:   cpExecutable,
-		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", dir + "/test-chain/dist/"},
+		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", toTag + "/test-chain/dist/"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -172,11 +178,9 @@ func GenerateBuildArtifacts() {
 		fmt.Println("error: ", err)
 	}
 
-	latestSha := getLatestSha()
-
 	buildDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", latestSha, "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/test-chain", "-t", "test-chain", "--no-cache"},
+		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", toTag, "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/test-chain", "-t", "test-chain", "--no-cache"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -187,7 +191,7 @@ func GenerateBuildArtifacts() {
 
 	tagDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + latestSha},
+		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + toTag},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -442,7 +446,7 @@ func CheckIfError(err error) {
 	}
 }
 
-func getLatestSha() string {
+func GetLatestSha() string {
 	/*
 		1. Build image + tag with github SHA.
 		2. Push image
@@ -470,7 +474,7 @@ func getLatestSha() string {
 	// now we want to use this SHA and build the docker image
 }
 
-func PushToEcr() {
+func PushToEcr(sha string) {
 	awsExecutable, _ := exec.LookPath("aws")
 	dockerExecutable, _ := exec.LookPath("docker")
 
@@ -495,11 +499,9 @@ func PushToEcr() {
 		fmt.Println("error: ", err)
 	}
 
-	latestSha := getLatestSha()
-
 	dockerPushECRCMD := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + latestSha},
+		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + sha},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
