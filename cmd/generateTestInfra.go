@@ -29,20 +29,20 @@ var generateTestInfra = &cobra.Command{
 	Long:  `Run this command to generate the infrastructure for your validators in AWS`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Generate Test Infra called")
+		// check to see if the clis exist
 
-		awsExecutable, _ := exec.LookPath("aws")
-
-		awsConfigureCMD := &exec.Cmd{
-			Path:   awsExecutable,
-			Args:   []string{awsExecutable, "configure"},
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
+		terraformExecutable, terraformErr := exec.LookPath("terraform")
+		if terraformErr != nil {
+			fmt.Println("Please install terraform")
+			return
 		}
 
-		if err := awsConfigureCMD.Run(); err != nil {
-			fmt.Println("error: ", err)
+		_, awsErr := exec.LookPath("aws")
+		if awsErr != nil {
+			fmt.Println("Please install aws-cli and run one-click-cosmos-testnet configure")
+			return
 		}
-		terraformExecutable, _ := exec.LookPath("terraform")
+
 		terraformApplyCmd := &exec.Cmd{
 			Path:   terraformExecutable,
 			Args:   []string{terraformExecutable, "apply", "-auto-approve"},

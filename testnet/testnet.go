@@ -18,6 +18,7 @@ import (
 )
 
 var nodeIdsArray []string
+var chainName string
 
 func rmGenesisFile() {
 	rmExecutable, _ := exec.LookPath("rm")
@@ -25,7 +26,7 @@ func rmGenesisFile() {
 	dir := usr.HomeDir
 	rmGenesisCmd := &exec.Cmd{
 		Path:   rmExecutable,
-		Args:   []string{rmExecutable, dir + "/.test-chain/config/genesis.json"},
+		Args:   []string{rmExecutable, dir + getChainConfigFolderName() + "/config/genesis.json"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -37,7 +38,7 @@ func rmGenesisFile() {
 
 func GenerateValidatorKeys(validatorNumber int64) {
 
-	chainExecutable, _ := exec.LookPath("test-chaind")
+	chainExecutable, _ := exec.LookPath(getChainBinaryName())
 
 	validatorNumberStr := strconv.Itoa((int(validatorNumber)))
 
@@ -88,7 +89,7 @@ func GenerateValidatorKeys(validatorNumber int64) {
 
 	initCmd := &exec.Cmd{
 		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "init", "validator-" + validatorNumberStr, "--chain-id", "test-chain"},
+		Args:   []string{chainExecutable, "init", "validator-" + validatorNumberStr, "--chain-id", getChainFolderName()},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -105,11 +106,11 @@ func GenerateValidatorKeys(validatorNumber int64) {
 
 	nodeIdsArray = append(nodeIdsArray, string(out))
 
-	e := os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_"+validatorNumberStr+".json")
+	e := os.Rename(dir+getChainConfigFolderName()+"/config/node_key.json", dir+getChainConfigFolderName()+"/config/node_key_"+validatorNumberStr+".json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
-	e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_"+validatorNumberStr+".json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/priv_validator_key.json", dir+getChainConfigFolderName()+"/config/priv_validator_key_"+validatorNumberStr+".json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
@@ -119,28 +120,28 @@ func GenerateBuildArtifacts(sha string) {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 	dockerExecutable, _ := exec.LookPath("docker")
-	os.Chdir(dir + "/test-chain")
+	os.Chdir(dir + getChainFolderName())
 
-	rmDistCMD := exec.Command("rm", "-rf", dir+"/test-chain/dist")
+	rmDistCMD := exec.Command("rm", "-rf", dir+"/"+getChainFolderName()+"/dist")
 
 	if err := rmDistCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
 
-	mkDistFolderCMD := exec.Command("mkdir", dir+"/test-chain/dist")
+	mkDistFolderCMD := exec.Command("mkdir", dir+"/"+getChainFolderName()+"/dist")
 	if err := mkDistFolderCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
 
 	fmt.Println("copying over test-chain config folder")
 
-	copyConfigFolderCMD := exec.Command("cp", "-R", dir+"/.test-chain", dir+"/test-chain/dist/")
+	copyConfigFolderCMD := exec.Command("cp", "-R", dir+getChainConfigFolderName(), dir+"/"+getChainFolderName()+"/dist/")
 
 	if err := copyConfigFolderCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
 
-	generateBinary := exec.Command("starport", "chain", "build", "-o", dir+"/test-chain/dist", "--release", "-t", "linux:amd64")
+	generateBinary := exec.Command("starport", "chain", "build", "-o", dir+getChainFolderName()+"/dist", "--release", "-t", "linux:amd64")
 	// // so now it should be test-chain/dist/binary and test-chain/dist/.test-chain
 
 	if err := generateBinary.Run(); err != nil {
@@ -151,7 +152,7 @@ func GenerateBuildArtifacts(sha string) {
 	// // TODO: generalize this
 
 	fmt.Println("untarring")
-	untarCMD := exec.Command("tar", "-xf", dir+"/test-chain/dist/test-chain_linux_amd64.tar.gz", "-C", dir+"/test-chain/dist/")
+	untarCMD := exec.Command("tar", "-xf", dir+"/"+getChainFolderName()+"/dist/"+getChainFolderName()+"_linux_amd64.tar.gz", "-C", dir+"/"+getChainFolderName()+"/dist/")
 	if err := untarCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
@@ -169,7 +170,7 @@ func GenerateBuildArtifacts(sha string) {
 
 	moveStartScript := &exec.Cmd{
 		Path:   cpExecutable,
-		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", toTag + "/test-chain/dist/"},
+		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", toTag + getChainFolderName() + "/dist/"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -180,7 +181,7 @@ func GenerateBuildArtifacts(sha string) {
 
 	buildDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", toTag, "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/test-chain", "-t", "test-chain", "--no-cache"},
+		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", toTag, "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/" + getChainFolderName(), "-t", getChainFolderName(), "--no-cache"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -191,7 +192,7 @@ func GenerateBuildArtifacts(sha string) {
 
 	tagDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + toTag},
+		Args:   []string{dockerExecutable, "tag", getChainFolderName() + ":latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + toTag},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -228,7 +229,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 		suffix = "_" + strconv.Itoa(validatorNumber)
 	}
 
-	err := os.Mkdir(dir+"/.test-chain/config/validator-config", 0770)
+	err := os.Mkdir(dir+getChainConfigFolderName()+"/config/validator-config", 0770)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -237,7 +238,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	moveNodeKey := &exec.Cmd{
 		Path:   cpExecutable,
-		Args:   []string{cpExecutable, dir + "/.test-chain/config/node_key" + suffix + ".json", dir + "/.test-chain/config/validator-config/node_key.json"},
+		Args:   []string{cpExecutable, dir + getChainConfigFolderName() + "/config/node_key" + suffix + ".json", dir + getChainConfigFolderName() + "/config/validator-config/node_key.json"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -248,7 +249,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	moveValidatorKey := &exec.Cmd{
 		Path:   cpExecutable,
-		Args:   []string{cpExecutable, dir + "/.test-chain/config/priv_validator_key" + suffix + ".json", dir + "/.test-chain/config/validator-config/priv_validator_key.json"},
+		Args:   []string{cpExecutable, dir + getChainConfigFolderName() + "/config/priv_validator_key" + suffix + ".json", dir + getChainConfigFolderName() + "/config/validator-config/priv_validator_key.json"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -260,7 +261,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyConfig := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-r", dir + "/.test-chain/config/validator-config", "ec2-user@" + dnsName + ":~/"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-r", dir + getChainConfigFolderName() + "/config/validator-config", "ec2-user@" + dnsName + ":~/"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -271,7 +272,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyConfigTomlCmd := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-pr", dir + "/.test-chain/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-pr", dir + getChainConfigFolderName() + "/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -397,7 +398,7 @@ func ConfigureValidators() {
 		sedExecutable, _ := exec.LookPath("sed")
 		addPersistentPeersToConfigCmd := &exec.Cmd{
 			Path:   sedExecutable,
-			Args:   []string{sedExecutable, "-i", "''", "s/persistent_peers = \"\"/" + persistentPeerString + "/g", dir + "/.test-chain/config/config.toml"},
+			Args:   []string{sedExecutable, "-i", "''", "s/persistent_peers = \"\"/" + persistentPeerString + "/g", dir + getChainConfigFolderName() + "/config/config.toml"},
 			Stdout: os.Stdout,
 			Stderr: os.Stderr,
 		}
@@ -408,7 +409,7 @@ func ConfigureValidators() {
 
 		setAddrBookStrictToFalseCMD := &exec.Cmd{
 			Path:   sedExecutable,
-			Args:   []string{sedExecutable, "-i", "''", "s/addr_book_strict = true/addr_book_strict = false/g", dir + "/.test-chain/config/config.toml"},
+			Args:   []string{sedExecutable, "-i", "''", "s/addr_book_strict = true/addr_book_strict = false/g", dir + getChainConfigFolderName() + "/config/config.toml"},
 			Stdout: os.Stdout,
 			Stderr: os.Stderr,
 		}
@@ -419,7 +420,7 @@ func ConfigureValidators() {
 
 		enableAPIServerCMD := &exec.Cmd{
 			Path:   sedExecutable,
-			Args:   []string{sedExecutable, "-i", "''", "s/enable = false/enable = true/g", dir + "/.test-chain/config/config.toml"},
+			Args:   []string{sedExecutable, "-i", "''", "s/enable = false/enable = true/g", dir + getChainConfigFolderName() + "/config/config.toml"},
 			Stdout: os.Stdout,
 			Stderr: os.Stderr,
 		}
@@ -458,7 +459,7 @@ func GetLatestSha() string {
 	// Clones the given repository, creating the remote, the local branches
 	// and fetching the objects, everything in memory:
 	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
-		URL: dir + "/test-chain/",
+		URL: dir + "/" + getChainFolderName(),
 	})
 	CheckIfError(err)
 
@@ -512,7 +513,7 @@ func PushToEcr(sha string) {
 
 	tagDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "tag", "test-chain:latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Args:   []string{dockerExecutable, "tag", getChainFolderName() + ":latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -533,33 +534,75 @@ func PushToEcr(sha string) {
 	}
 }
 
+func getChainConfigFolderName() string {
+	return "/." + getChainFolderName()
+}
+
+func getChainFolderName() string {
+	path, _ := os.Getwd()
+
+	splitPath := strings.Split(path, "/")
+	fileName := splitPath[len(splitPath)-1]
+
+	return fileName
+}
+
+func getChainBinaryName() string {
+	return getChainFolderName() + "d"
+}
+
 func Setup() {
 	// clean up
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 
-	rmNodeKeyCMD := exec.Command("rm", "-f", dir+"/.test-chain/config/node_key.json")
+	_, err := exec.LookPath("starport")
+
+	if err != nil {
+		fmt.Println("starport does not exist, please install starport - https://docs.starport.com/guide/install.html")
+	}
+
+	path, _ := os.Getwd()
+
+	fmt.Println("PATH")
+	fmt.Println(path)
+
+	splitPath := strings.Split(path, "/")
+	fileName := splitPath[len(splitPath)-1]
+	fmt.Println(fileName)
+
+	// does the binary exist?
+
+	_, err = exec.LookPath(fileName + "d")
+
+	if err != nil {
+		fmt.Println("Please run starport chain build once before running this command")
+	}
+
+	// if the binary does not exist, build it
+
+	rmNodeKeyCMD := exec.Command("rm", "-f", dir+getChainConfigFolderName()+"/config/node_key.json")
 
 	if err := rmNodeKeyCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 
 	}
 
-	rmValidatorKeyCMD := exec.Command("rm", "-f", dir+"/.test-chain/config/priv_validator_key.json")
+	rmValidatorKeyCMD := exec.Command("rm", "-f", dir+getChainConfigFolderName()+"/config/priv_validator_key.json")
 
 	if err := rmValidatorKeyCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 
 	}
 
-	rmGenesisJsonCMD := exec.Command("rm", "-f", dir+"/.test-chain/config/genesis.json")
+	rmGenesisJsonCMD := exec.Command("rm", "-f", dir+getChainConfigFolderName()+"/config/genesis.json")
 	if err := rmGenesisJsonCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
 }
 
 func collectGentX() {
-	chainExecutable, _ := exec.LookPath("test-chaind")
+	chainExecutable, _ := exec.LookPath(getChainFolderName())
 	collectGentXCmd := &exec.Cmd{
 		Path: chainExecutable,
 		Args: []string{chainExecutable, "collect-gentxs"},
@@ -572,16 +615,16 @@ func collectGentX() {
 }
 
 func GenerateGenesisTransactionsAndAccounts() {
-	chainExecutable, _ := exec.LookPath("test-chaind")
+	chainExecutable, _ := exec.LookPath(getChainBinaryName())
 	fmt.Println("generating genesis transactions and accounts")
 
 	usr, _ := user.Current()
 	dir := usr.HomeDir
-	e := os.Rename(dir+"/.test-chain/config/node_key_1.json", dir+"/.test-chain/config/node_key.json")
+	e := os.Rename(dir+getChainConfigFolderName()+"/config/node_key_1.json", dir+getChainConfigFolderName()+"/config/node_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
-	e = os.Rename(dir+"/.test-chain/config/priv_validator_key_1.json", dir+"/.test-chain/config/priv_validator_key.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/priv_validator_key_1.json", dir+getChainConfigFolderName()+"/config/priv_validator_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
@@ -611,7 +654,7 @@ func GenerateGenesisTransactionsAndAccounts() {
 
 	createGentXValidator1Cmd := &exec.Cmd{
 		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "gentx", "validator-1", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test"},
+		Args:   []string{chainExecutable, "gentx", "validator-1", "100000000stake", "--chain-id", getChainFolderName(), "--keyring-backend", "test"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -619,20 +662,20 @@ func GenerateGenesisTransactionsAndAccounts() {
 		fmt.Println("error: ", err)
 	}
 
-	e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_1.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/node_key.json", dir+getChainConfigFolderName()+"/config/node_key_1.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
-	e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_1.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/priv_validator_key.json", dir+getChainConfigFolderName()+"/config/priv_validator_key_1.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
 
-	e = os.Rename(dir+"/.test-chain/config/node_key_2.json", dir+"/.test-chain/config/node_key.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/node_key_2.json", dir+getChainConfigFolderName()+"/config/node_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
-	e = os.Rename(dir+"/.test-chain/config/priv_validator_key_2.json", dir+"/.test-chain/config/priv_validator_key.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/priv_validator_key_2.json", dir+getChainConfigFolderName()+"/config/priv_validator_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
@@ -661,7 +704,7 @@ func GenerateGenesisTransactionsAndAccounts() {
 
 	createGentXValidator2Cmd := &exec.Cmd{
 		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "gentx", "validator-2", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test"},
+		Args:   []string{chainExecutable, "gentx", "validator-2", "100000000stake", "--chain-id", getChainFolderName(), "--keyring-backend", "test"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -670,20 +713,20 @@ func GenerateGenesisTransactionsAndAccounts() {
 		fmt.Println("error: ", err)
 	}
 
-	e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_2.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/node_key.json", dir+getChainConfigFolderName()+"/config/node_key_2.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
-	e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_2.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/priv_validator_key.json", dir+getChainConfigFolderName()+"/config/priv_validator_key_2.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
 
-	e = os.Rename(dir+"/.test-chain/config/node_key_3.json", dir+"/.test-chain/config/node_key.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/node_key_3.json", dir+getChainConfigFolderName()+"/config/node_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
-	e = os.Rename(dir+"/.test-chain/config/priv_validator_key_3.json", dir+"/.test-chain/config/priv_validator_key.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/priv_validator_key_3.json", dir+getChainConfigFolderName()+"/config/priv_validator_key.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
@@ -713,7 +756,7 @@ func GenerateGenesisTransactionsAndAccounts() {
 
 	createGentXValidator3Cmd := &exec.Cmd{
 		Path:   chainExecutable,
-		Args:   []string{chainExecutable, "gentx", "validator-3", "100000000stake", "--chain-id", "test-chain", "--keyring-backend", "test"},
+		Args:   []string{chainExecutable, "gentx", "validator-3", "100000000stake", "--chain-id", getChainFolderName(), "--keyring-backend", "test"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -722,11 +765,11 @@ func GenerateGenesisTransactionsAndAccounts() {
 		fmt.Println("error: ", err)
 	}
 
-	e = os.Rename(dir+"/.test-chain/config/node_key.json", dir+"/.test-chain/config/node_key_3.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/node_key.json", dir+getChainConfigFolderName()+"/config/node_key_3.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}
-	e = os.Rename(dir+"/.test-chain/config/priv_validator_key.json", dir+"/.test-chain/config/priv_validator_key_3.json")
+	e = os.Rename(dir+getChainConfigFolderName()+"/config/priv_validator_key.json", dir+getChainConfigFolderName()+"/config/priv_validator_key_3.json")
 	if e != nil {
 		fmt.Println("rename error: ", e)
 	}

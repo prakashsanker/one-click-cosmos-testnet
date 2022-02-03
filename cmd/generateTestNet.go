@@ -25,7 +25,7 @@ import (
 // generateTestNetCmd represents the generateTestNet command
 var generateTestNetCmd = &cobra.Command{
 	Use:   "generate-test-net",
-	Short: "One click testnet for starport scaffolded applications",
+	Short: "create 3 node validator set",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("generateTestNet called")
 
@@ -38,17 +38,17 @@ var generateTestNetCmd = &cobra.Command{
 
 		// We first need to clear up any existing node_key.json and priv_validator_key.json
 		testnet.Setup()
-		testnet.GenerateValidatorKeys(1)
-		testnet.GenerateValidatorKeys(2)
-		testnet.GenerateValidatorKeys(3)
+		// testnet.GenerateValidatorKeys(1)
+		// testnet.GenerateValidatorKeys(2)
+		// testnet.GenerateValidatorKeys(3)
 
-		testnet.GenerateGenesisTransactionsAndAccounts()
+		// testnet.GenerateGenesisTransactionsAndAccounts()
 
-		testnet.GenerateBuildArtifacts("")
-		testnet.PushToEcr("")
+		// testnet.GenerateBuildArtifacts("")
+		// testnet.PushToEcr("")
 
-		testnet.ConfigureValidators()
-		testnet.UpdateValidators()
+		// testnet.ConfigureValidators()
+		// testnet.UpdateValidators()
 
 	},
 }
