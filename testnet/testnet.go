@@ -206,15 +206,15 @@ func GenerateBuildArtifacts(sha string) {
 	}
 }
 
-// func GetSummaryInformation() {
-// 	fmt.Println("Fetching your EC2")
-// 	instances := getEC2Instances()
-// 	for i, instance := range instances {
-// 		fmt.Println("Node - " + string(i))
-// 		fmt.Println("SSH into Node" + string(i) + "with this command " + "ssh " + "-i 'validator_key.pem' -o IdentitiesOnly=yes ec2-user@" + instance.DnsName)
-// 		fmt.Println("Submit transactions at " + instance.DnsName + ":1317")
-// 	}
-// }
+func GetSummaryInformation() {
+	fmt.Println("Fetching your validators' information")
+	instances := getEC2Instances()
+	for i, instance := range instances {
+		fmt.Println("Node - " + strconv.Itoa(i))
+		fmt.Println("SSH into Node" + strconv.Itoa(i) + " with this command " + "ssh " + "-i 'validator_key.pem' -o IdentitiesOnly=yes ec2-user@" + instance.DnsName)
+		fmt.Println("Submit transactions at " + instance.DnsName + ":1317")
+	}
+}
 
 // func MovePemFileToChainCode() {
 // 	cpExecutable, _ := exec.LookPath("cp")
@@ -333,7 +333,6 @@ func getEC2Instances() []EC2Instance {
 		fmt.Println("Success", result)
 		for _, reservation := range result.Reservations {
 			for _, instance := range reservation.Instances {
-				fmt.Println(*instance.NetworkInterfaces[0].Association.PublicDnsName)
 				publicDnsName := *instance.NetworkInterfaces[0].Association.PublicDnsName
 				newInstance := EC2Instance{
 					DnsName:    publicDnsName,

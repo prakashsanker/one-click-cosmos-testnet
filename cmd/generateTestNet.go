@@ -49,7 +49,7 @@ var generateTestNetCmd = &cobra.Command{
 
 		testnet.ConfigureValidators()
 		testnet.UpdateValidators()
-
+		testnet.GetSummaryInformation()
 	},
 }
 
