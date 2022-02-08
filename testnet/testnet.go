@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/storage/memory"
+	"github.com/prakashsanker/one-click-cosmos-testnet/config"
 )
 
 var nodeIdsArray []string
@@ -164,7 +165,6 @@ func GenerateBuildArtifacts(sha string) {
 	// // // now we want to build the Docker image
 
 	// we need to temporarily move the start script over
-	cpExecutable, _ := exec.LookPath("cp")
 
 	toTag := sha
 
@@ -172,20 +172,10 @@ func GenerateBuildArtifacts(sha string) {
 		toTag = GetLatestSha()
 	}
 
-	moveStartScript := &exec.Cmd{
-		Path:   cpExecutable,
-		Args:   []string{cpExecutable, dir + "/one-click-cosmos-testnet/start.sh", dir + "/" + getChainFolderName() + "/dist/"},
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}
-
-	if err := moveStartScript.Run(); err != nil {
-		fmt.Println("error: ", err)
-	}
-
+	config.GenerateStartScript()
 	buildDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", toTag, "-f", dir + "/one-click-cosmos-testnet/Dockerfile", dir + "/" + getChainFolderName(), "-t", getChainFolderName(), "--no-cache"},
+		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", toTag, "-f", dir + "/" + getChainFolderName() + "/one-click-cosmos-testnet/Dockerfile", dir + "/" + getChainFolderName(), "-t", getChainFolderName(), "--no-cache"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -283,9 +273,10 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 	}
 	scpExecutable, _ := exec.LookPath("scp")
 
+	fmt.Println(dir + "/" + getChainFolderName() + "/validator_key.pem")
 	copyConfig := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-r", dir + getChainConfigFolderName() + "/config/validator-config", "ec2-user@" + dnsName + ":~/"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/" + getChainFolderName() + "/validator_key.pem", "-r", dir + getChainConfigFolderName() + "/config/validator-config", "ec2-user@" + dnsName + ":~"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -296,7 +287,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyConfigTomlCmd := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-pr", dir + getChainConfigFolderName() + "/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/" + getChainFolderName() + "/validator_key.pem", "-pr", dir + getChainConfigFolderName() + "/config/config.toml", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -307,7 +298,7 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 
 	copyStartScriptCMD := &exec.Cmd{
 		Path:   scpExecutable,
-		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/one-click-cosmos-testnet/validator_key.pem", "-pr", dir + "/one-click-cosmos-testnet/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/" + getChainFolderName() + "/validator_key.pem", "-pr", dir + "/" + getChainFolderName() + "/dist/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -577,6 +568,14 @@ func getChainBinaryName() string {
 	return getChainFolderName() + "d"
 }
 
+func generateDockerfile() {
+
+}
+
+func generateStartScript() {
+
+}
+
 func Setup() {
 	// clean up
 	usr, _ := user.Current()
@@ -590,12 +589,8 @@ func Setup() {
 
 	path, _ := os.Getwd()
 
-	fmt.Println("PATH")
-	fmt.Println(path)
-
 	splitPath := strings.Split(path, "/")
 	fileName := splitPath[len(splitPath)-1]
-	fmt.Println(fileName)
 
 	// does the binary exist?
 
@@ -626,11 +621,13 @@ func Setup() {
 	if err := rmGenesisJsonCMD.Run(); err != nil {
 		fmt.Println("error: ", err)
 	}
+
+	// generate necessary files
+
+	config.GenerateDockerFile()
 }
 
 func collectGentX() {
-	fmt.Println("GET CHAIN FOLDER NAME")
-	fmt.Println(getChainFolderName())
 	chainExecutable, _ := exec.LookPath(getChainBinaryName())
 	collectGentXCmd := &exec.Cmd{
 		Path: chainExecutable,

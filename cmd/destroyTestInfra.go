@@ -25,7 +25,7 @@ import (
 
 // destroyTestInfraCmd represents the destroyTestInfra command
 var destroyTestInfraCmd = &cobra.Command{
-	Use:   "destroyTestInfra",
+	Use:   "destroy-test-infra",
 	Short: "Destroy your validators",
 	Long:  `Takes down validators`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -33,7 +33,7 @@ var destroyTestInfraCmd = &cobra.Command{
 		terraformExecutable, _ := exec.LookPath("terraform")
 		terraformDestroyCmd := &exec.Cmd{
 			Path:   terraformExecutable,
-			Args:   []string{terraformExecutable, "destroy"},
+			Args:   []string{terraformExecutable, "destroy", "-auto-approve"},
 			Stdout: os.Stdout,
 			Stderr: os.Stderr,
 		}
