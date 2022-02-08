@@ -298,6 +298,17 @@ func moveConfigIntoValidatorConfigFolder(dnsName string, validatorNumber int) {
 		fmt.Print("Config.toml error: ", err)
 	}
 
+	copyAppTomlCmd := &exec.Cmd{
+		Path:   scpExecutable,
+		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/" + getChainFolderName() + "/validator_key.pem", "-pr", dir + getChainConfigFolderName() + "/config/app.toml", "ec2-user@" + dnsName + ":~/validator-config"},
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	if err := copyAppTomlCmd.Run(); err != nil {
+		fmt.Print("Config.toml error: ", err)
+	}
+
 	copyStartScriptCMD := &exec.Cmd{
 		Path:   scpExecutable,
 		Args:   []string{scpExecutable, "-o StrictHostKeyChecking=no", "-o IdentitiesOnly=yes", "-i", dir + "/" + getChainFolderName() + "/validator_key.pem", "-pr", dir + "/" + getChainFolderName() + "/dist/start.sh", "ec2-user@" + dnsName + ":~/validator-config"},
@@ -467,16 +478,16 @@ func ConfigureValidators() {
 			fmt.Println("error: ", err)
 		}
 
-		// enableAPIServerCMD := &exec.Cmd{
-		// 	Path:   sedExecutable,
-		// 	Args:   []string{sedExecutable, "-i", "''", "s/enable = false/enable = true/g", dir + getChainConfigFolderName() + "/config/config.toml"},
-		// 	Stdout: os.Stdout,
-		// 	Stderr: os.Stderr,
-		// }
+		enableAPIServerCMD := &exec.Cmd{
+			Path:   sedExecutable,
+			Args:   []string{sedExecutable, "-i", "''", "s/enable = false/enable = true/g", dir + getChainConfigFolderName() + "/config/app.toml"},
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
 
-		// if err := enableAPIServerCMD.Run(); err != nil {
-		// 	fmt.Println("error: ", err)
-		// }
+		if err := enableAPIServerCMD.Run(); err != nil {
+			fmt.Println("error: ", err)
+		}
 
 		for i, instance := range instances {
 			dnsName := instance.DnsName
