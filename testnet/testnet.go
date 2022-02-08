@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/prakashsanker/one-click-cosmos-testnet/config"
@@ -118,7 +119,6 @@ func GenerateValidatorKeys(validatorNumber int64) {
 }
 
 func GenerateBuildArtifacts(sha string) {
-	fmt.Println("Are we hitting GENERATE BUILD ARTIFACTS?")
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 	dockerExecutable, _ := exec.LookPath("docker")
@@ -184,9 +184,11 @@ func GenerateBuildArtifacts(sha string) {
 		fmt.Println("error: ", err)
 	}
 
+	repoUri, _ := getRepoUri()
+
 	tagDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "tag", getChainFolderName() + ":latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + toTag},
+		Args:   []string{dockerExecutable, "tag", getChainFolderName() + ":latest", repoUri + ":" + toTag},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -549,6 +551,30 @@ func GetLatestSha() string {
 	// now we want to use this SHA and build the docker image
 }
 
+func getRepoUri() (repoUri string, uriRoot string) {
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	svc := ecr.New(sess)
+	input := &ecr.DescribeRepositoriesInput{}
+
+	result, err := svc.DescribeRepositories(input)
+	uri := *result.Repositories[0].RepositoryUri
+
+	if err != nil {
+		fmt.Println("ECR Error ", err)
+	}
+
+	splitRepoUri := strings.Split(uri, "/")
+	root := splitRepoUri[0]
+
+	fmt.Println("GET REPO URI CALLED")
+	fmt.Println(uri)
+	fmt.Println(root)
+	return uri, root
+}
+
 func PushToEcr(sha string) {
 	awsExecutable, _ := exec.LookPath("aws")
 	dockerExecutable, _ := exec.LookPath("docker")
@@ -563,9 +589,13 @@ func PushToEcr(sha string) {
 		fmt.Print("error: ", err)
 	}
 
+	// I have to get the repo name
+
+	repoUri, uriRoot := getRepoUri()
+
 	dockerEcrLoginCMD := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "login", "--username", "AWS", "-p", string(out), "187926495729.dkr.ecr.ap-south-1.amazonaws.com"},
+		Args:   []string{dockerExecutable, "login", "--username", "AWS", "-p", string(out), uriRoot},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -576,7 +606,7 @@ func PushToEcr(sha string) {
 
 	dockerPushECRCMD := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:" + sha},
+		Args:   []string{dockerExecutable, "push", repoUri + ":" + sha},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -587,7 +617,7 @@ func PushToEcr(sha string) {
 
 	tagDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "tag", getChainFolderName() + ":latest", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Args:   []string{dockerExecutable, "tag", getChainFolderName() + ":latest", repoUri + ":latest"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -598,7 +628,7 @@ func PushToEcr(sha string) {
 
 	dockerPushLatestECRCMD := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "push", "187926495729.dkr.ecr.ap-south-1.amazonaws.com/one-click-cosmos-testnet-repo:latest"},
+		Args:   []string{dockerExecutable, "push", repoUri + ":latest"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}

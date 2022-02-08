@@ -7,6 +7,8 @@ This is an attempt to make it easier to get started with Cosmos SDK. This CLI wi
 3. Allow you to submit transactions against a real life blockchain, in order to simulate a production environment.
 4. Gives you a clean testing environment against which to run your code.
 
+Please note that this repo is WIP. Please file an issue if you come across an error.
+
 ## Prerequisites
 
 You will need the following tech to run this cli
@@ -25,7 +27,7 @@ Make _sure_ that you have Docker desktop running. Otherwise this will not work.
 2. Run `go install github.com/prakashsanker/one-click-cosmos-testnet`
 3. Scaffold a chain with starport `starpot chain scaffold <chain-name>`
 4. Run `starport chain serve`. Once you see that the chain is running, quit the process.
-5. Run `one-click-cosmos-testnet configure` and enter in your AWS details
+5. Run `one-click-cosmos-testnet configure` and enter in your AWS details. To generate an access key and a secret key follow [this](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html) documentation.
 6. Run `one-click-cosmos-testnet generate-test-infra`
 7. Run `one-click-cosmos-testnet generate-test-net`
 
