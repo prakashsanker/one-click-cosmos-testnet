@@ -328,9 +328,20 @@ func getEC2Instances() []EC2Instance {
 	}))
 	var instances []EC2Instance
 
+	input := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("instance-state-name"),
+				Values: []*string{
+					aws.String("running"),
+				},
+			},
+		},
+	}
+
 	// Create new EC2 client
 	ec2Svc := ec2.New(sess)
-	result, err := ec2Svc.DescribeInstances(nil)
+	result, err := ec2Svc.DescribeInstances(input)
 	if err != nil {
 		fmt.Println("Error", err)
 	} else {
