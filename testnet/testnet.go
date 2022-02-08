@@ -568,10 +568,6 @@ func getRepoUri() (repoUri string, uriRoot string) {
 
 	splitRepoUri := strings.Split(uri, "/")
 	root := splitRepoUri[0]
-
-	fmt.Println("GET REPO URI CALLED")
-	fmt.Println(uri)
-	fmt.Println(root)
 	return uri, root
 }
 

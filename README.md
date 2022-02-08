@@ -3,7 +3,7 @@
 This is an attempt to make it easier to get started with Cosmos SDK. This CLI will -
 
 1. Create 3 EC2 instances that are validators that come to consensus and commit transactions.
-2. Allow you to deploy your cosmos sdk code easily (as well as rollback to different commits)
+2. Allow you to deploy your cosmos sdk code easily.
 3. Allow you to submit transactions against a real life blockchain, in order to simulate a production environment.
 4. Gives you a clean testing environment against which to run your code.
 
@@ -49,11 +49,11 @@ The url at port `1317` is where you can submit transactions.
 
 ### Deploys
 
-Do _not_ run `one-click-cosmos-testnet generate-test-net` more than once unless you have removed your configuration folder (by default this lives at `.<chain-name>`)
+Right now, this is hacky, but works.
 
-To deploy code, run `one-click-cosmos-testnet deploy --sha <SHA>`. If you do not specify the git commit SHA, the CLI will build from your current head and deploy.
+1. Run `one-click-cosmos-testnet deploy`
 
-You can use the same command for rollbacks - simply supply an earlier sha.
+Rollbacks are not supported yet, but you can approximate by checking out (in git) and then running the deploy command.
 
 ### Getting Validator Information
 

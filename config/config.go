@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-func getChainConfigFolderName() string {
-	return "." + getChainFolderName()
+func GetChainConfigFolderName() string {
+	return "." + GetChainFolderName()
 }
 
-func getChainFolderName() string {
+func GetChainFolderName() string {
 	path, _ := os.Getwd()
 
 	splitPath := strings.Split(path, "/")
@@ -20,7 +20,7 @@ func getChainFolderName() string {
 }
 
 func getChainBinaryName() string {
-	return getChainFolderName() + "d"
+	return GetChainFolderName() + "d"
 }
 
 var Dockerfile = `
@@ -75,7 +75,7 @@ func GenerateStartScript() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	chainConfigFolderName := getChainConfigFolderName()
+	chainConfigFolderName := GetChainConfigFolderName()
 	chainBinaryName := getChainBinaryName()
 	defer startScriptTemplate.Close()
 

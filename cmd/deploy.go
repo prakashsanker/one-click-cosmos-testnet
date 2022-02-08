@@ -17,10 +17,13 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"os/user"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/prakashsanker/one-click-cosmos-testnet/config"
 	"github.com/prakashsanker/one-click-cosmos-testnet/testnet"
 	"github.com/spf13/cobra"
 )
@@ -31,12 +34,24 @@ var deployCmd = &cobra.Command{
 	Short: "Deploy your chain to your validators",
 	Long:  `Run testnet deploy <SHA> in order to deploy a specific version of your code. Default is HEAD`,
 	Run: func(cmd *cobra.Command, args []string) {
-		commitSha, _ := cmd.Flags().GetString("sha")
+		rmExecutable, _ := exec.LookPath("rm")
 		usr, _ := user.Current()
 		dir := usr.HomeDir
+		commitSha, _ := cmd.Flags().GetString("sha")
+
+		rmConfigFolder := &exec.Cmd{
+			Path:   rmExecutable,
+			Args:   []string{rmExecutable, "-rf", dir + "/" + config.GetChainConfigFolderName()},
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+
+		if err := rmConfigFolder.Run(); err != nil {
+			fmt.Println("deploy error: ", err)
+		}
 		if commitSha != "" {
 			fmt.Println("Commit sha provided... using " + commitSha)
-			r, err := git.PlainOpen(dir + "/test-chain")
+			r, err := git.PlainOpen(dir + "/" + config.GetChainFolderName())
 			testnet.CheckIfError(err)
 
 			worktree, err := r.Worktree()
@@ -50,17 +65,37 @@ var deployCmd = &cobra.Command{
 			})
 			testnet.CheckIfError(err)
 
+			testnet.Setup()
+			testnet.GenerateValidatorKeys(1)
+			testnet.GenerateValidatorKeys(2)
+			testnet.GenerateValidatorKeys(3)
+
+			testnet.GenerateGenesisTransactionsAndAccounts()
+
 			testnet.GenerateBuildArtifacts(commitSha)
 			testnet.PushToEcr(commitSha)
+
+			testnet.ConfigureValidators()
 			testnet.UpdateValidators()
+			testnet.GetSummaryInformation()
 			// we need to also store the branch we were on before.
 
 		} else {
 			fmt.Println("No commit sha provided....using current HEAD")
 			latestSha := testnet.GetLatestSha()
+			testnet.Setup()
+			testnet.GenerateValidatorKeys(1)
+			testnet.GenerateValidatorKeys(2)
+			testnet.GenerateValidatorKeys(3)
+
+			testnet.GenerateGenesisTransactionsAndAccounts()
+
 			testnet.GenerateBuildArtifacts(latestSha)
 			testnet.PushToEcr(latestSha)
+
+			testnet.ConfigureValidators()
 			testnet.UpdateValidators()
+			testnet.GetSummaryInformation()
 		}
 
 	},
