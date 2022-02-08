@@ -199,6 +199,8 @@ func GenerateBuildArtifacts(sha string) {
 func GetSummaryInformation() {
 	fmt.Println("Fetching your validators' information")
 	instances := getEC2Instances()
+	fmt.Println("instances")
+	fmt.Println(instances)
 	for i, instance := range instances {
 		fmt.Println("Node - " + strconv.Itoa(i))
 		fmt.Println("SSH into Node" + strconv.Itoa(i) + " with this command " + "ssh " + "-i 'validator_key.pem' -o IdentitiesOnly=yes ec2-user@" + instance.DnsName)
@@ -421,6 +423,39 @@ func ConfigureValidators() {
 			fmt.Println("error: ", err)
 		}
 
+		setLaddrCmd := &exec.Cmd{
+			Path:   sedExecutable,
+			Args:   []string{sedExecutable, "-i", "''", "s#laddr = \"tcp://127.0.0.1:26657\"#laddr = \"tcp://0.0.0.0:26657\"#g", dir + getChainConfigFolderName() + "/config/config.toml"},
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+
+		if err := setLaddrCmd.Run(); err != nil {
+			fmt.Println("error: ", err)
+		}
+
+		setCorsAllowedOriginsCmd := &exec.Cmd{
+			Path:   sedExecutable,
+			Args:   []string{sedExecutable, "-i", "''", "s#cors_allowed_origins = [[*]]#cors_allowed_origins = [\"*\"]#g", dir + getChainConfigFolderName() + "/config/config.toml"},
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+
+		if err := setCorsAllowedOriginsCmd.Run(); err != nil {
+			fmt.Println("error :", err)
+		}
+
+		setStateSyncCmd := &exec.Cmd{
+			Path:   sedExecutable,
+			Args:   []string{sedExecutable, "-i", "''", "s#enable = true #enable = false #g", dir + getChainConfigFolderName() + "/config/config.toml"},
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+
+		if err := setStateSyncCmd.Run(); err != nil {
+			fmt.Println("error :", err)
+		}
+
 		setAddrBookStrictToFalseCMD := &exec.Cmd{
 			Path:   sedExecutable,
 			Args:   []string{sedExecutable, "-i", "''", "s/addr_book_strict = true/addr_book_strict = false/g", dir + getChainConfigFolderName() + "/config/config.toml"},
@@ -432,16 +467,16 @@ func ConfigureValidators() {
 			fmt.Println("error: ", err)
 		}
 
-		enableAPIServerCMD := &exec.Cmd{
-			Path:   sedExecutable,
-			Args:   []string{sedExecutable, "-i", "''", "s/enable = false/enable = true/g", dir + getChainConfigFolderName() + "/config/config.toml"},
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
-		}
+		// enableAPIServerCMD := &exec.Cmd{
+		// 	Path:   sedExecutable,
+		// 	Args:   []string{sedExecutable, "-i", "''", "s/enable = false/enable = true/g", dir + getChainConfigFolderName() + "/config/config.toml"},
+		// 	Stdout: os.Stdout,
+		// 	Stderr: os.Stderr,
+		// }
 
-		if err := enableAPIServerCMD.Run(); err != nil {
-			fmt.Println("error: ", err)
-		}
+		// if err := enableAPIServerCMD.Run(); err != nil {
+		// 	fmt.Println("error: ", err)
+		// }
 
 		for i, instance := range instances {
 			dnsName := instance.DnsName
