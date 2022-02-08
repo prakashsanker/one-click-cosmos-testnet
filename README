@@ -1,4 +1,4 @@
-## Introduction
+##Introduction
 
 This is an attempt to make it easier to get started with Cosmos SDK. This CLI will -
 
