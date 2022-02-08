@@ -175,7 +175,7 @@ func GenerateBuildArtifacts(sha string) {
 	config.GenerateStartScript()
 	buildDockerImage := &exec.Cmd{
 		Path:   dockerExecutable,
-		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", toTag, "-f", dir + "/" + getChainFolderName() + "/one-click-cosmos-testnet/Dockerfile", dir + "/" + getChainFolderName(), "-t", getChainFolderName(), "--no-cache"},
+		Args:   []string{dockerExecutable, "buildx", "build", "--platform", "linux/amd64", "-t", toTag, "-f", dir + "/" + getChainFolderName() + "/Dockerfile", dir + "/" + getChainFolderName(), "-t", getChainFolderName(), "--no-cache"},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
@@ -566,14 +566,6 @@ func getChainFolderName() string {
 
 func getChainBinaryName() string {
 	return getChainFolderName() + "d"
-}
-
-func generateDockerfile() {
-
-}
-
-func generateStartScript() {
-
 }
 
 func Setup() {
