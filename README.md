@@ -25,7 +25,7 @@ Make _sure_ that you have Docker desktop running. Otherwise this will not work.
 
 1. Clone this repo
 2. Run `go install github.com/prakashsanker/one-click-cosmos-testnet`
-3. Scaffold a chain with starport `starport chain scaffold <chain-name>`
+3. Scaffold a chain with starport `starport scaffold chain <chain-name>`
 4. Run `starport chain serve`. Once you see that the chain is running, quit the process.
 5. Run `one-click-cosmos-testnet configure` and enter in your AWS details. To generate an access key and a secret key follow [this](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html) documentation.
 6. Run `one-click-cosmos-testnet generate-test-infra`
